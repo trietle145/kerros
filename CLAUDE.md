@@ -38,11 +38,17 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
 5. One added feature.
 6. Scale numbers on L, polish, demo rehearsal.
 
-## Proposed tables (columns settle in phase 2)
-- `article` (system-versioned, from the starter + `parent_id`, `anonymous`).
-- `passage` (system-versioned): `passage_id, page_id, position, heading, text, text_hash`.
-- `passage_vector`: `passage_id, embedding VECTOR(1024)` + vector index.
-- `article_vector`: shipped S vectors, `lang, page_id, embedding VECTOR(1024)`.
+## Architecture (draft: docs/architecture.md)
+- Core = cited Q&A + article summaries. Retrieval: paragraph vectors, then hybrid with FULLTEXT
+  fused by rank (recommended, not yet confirmed).
+- Tables: `article` (versioned, every revision), `passage` (current paragraphs, plain table, keeps
+  `page_id`, `rev_id`, `heading`, `text_hash`, FULLTEXT on text), `passage_vector` (keyed by
+  `text_hash`, VECTOR(1024) + index), `article_vector` (shipped S vectors).
+- Keep these three choices: vectors keyed by text hash (old versions can get vectors later);
+  every paragraph keeps its source `rev_id` (citations link to `?oldid=`); the full history is
+  loaded even though the core reads only the newest revision.
+- Feature ideas (edit wars, vandalism, cross-language, contradictions...) live in docs/ideas.md
+  and add tables next to these; they must not require changing the core.
 
 ## Data (from github.com/MariaDB/mariadb-wikipedia-datasets, releases `*-2026-10`)
 - **S**: History of Finland, current versions. 19,285 fi, 4,921 sv, 5,254 en articles. Clean
@@ -83,6 +89,8 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
 
 ## Project docs
 - `docs/plan.md`: the rough plan (idea, decisions, phases, feature candidates, risks).
+- `docs/architecture.md`: core cited Q&A architecture (draft).
+- `docs/ideas.md`: feature ideas to pick from later.
 - `docs/research/wikipedia-problems.md`: problems worth solving, ranked, with sources.
 - `docs/research/edit-wars.md`: edit wars and vandalism, detection methods, 8 feature ideas.
 

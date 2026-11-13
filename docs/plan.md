@@ -86,6 +86,8 @@ and moved between versions.
 
 ## Added-feature candidates
 
+The full, longer pool of ideas is in `ideas.md`; the architecture for the core is in `architecture.md`.
+
 | Candidate | What the user sees | Extra work | Outside data |
 | --- | --- | --- | --- |
 | Contested-paragraph heatmap | Paragraphs shaded by how often they were fought over, with a summary of what each fight is about | Medium | No |
