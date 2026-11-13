@@ -137,12 +137,11 @@ Split between two people: **A = database and history**, **B = paragraphs, vector
   are committed; no code exists yet.
 - MariaDB 12.3.3 runs on this PC in Docker (`docker compose up -d`), data volume on D:, host port
   **3307** (a MySQL 9.4 Windows service holds 3306; leave it alone). Schema applied, ef_search=80
-  confirmed, login `triet`. Nothing is loaded yet. The Verda machine with
+  confirmed, login `triet`. **All of M is loaded** (19,742 articles, 862,076 versions, 6.1 GB,
+  11.5 min; `load_m.py --verify 30` all ok). The Verda machine with
   `docker-compose.yml` stays the plan for an always-on shared host.
 - `.env.example` lists every setting; copy to `.env` (git-ignored) and fill in.
-- `schema.sql` (all five tables) is written. Next steps for the load: a Parquet
-  loader `scripts/load_m.py` (real timestamps, resumable, `--limit`), a 20-article smoke test,
-  then the full load in the background logging to `data/load_m.log`.
+- Next: S vectors (1.B3/1.B5), paragraphs (1.B1), revert detection (2.A1).
 
 ## Coding style
 - Use the `ponytail` skill (level full) for every coding task: the smallest code that works,

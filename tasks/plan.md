@@ -54,7 +54,7 @@ never committed.
 
 Download sizes (compressed Parquet, checked 2026-11-14): S 145 MB, M 301 MB, L 472 MB, under 1 GB
 in all. M unpacks to 12.2 GB because every version is a full copy, so **M is the slow load**
-(overnight). L is one version per article and should load in well under an hour; what makes L
+(measured: 11.5 min on a laptop, 6.1 GB in the table). L is one version per article and should load in well under an hour; what makes L
 slow is embedding its paragraphs (rough guess 1–2 million) and building their index.
 
 ## How the two people split the work
@@ -148,7 +148,7 @@ applied by the container in 1.A1).
 **Verification:** a `scripts/smoke.sql` that runs clean, its output pasted in the PR.
 **Dependencies:** 1.A1. **Files:** `scripts/smoke.sql`. **Scope:** S.
 
-### Task 1.A4: M loader, 20-article test
+### Task 1.A4: M loader, 20-article test (done)
 
 **Description:** `scripts/load_m.py` writes every version of each article from `data/m/*.parquet`
 into `article` with its real timestamp, based on the SVT starter's `load.py`. Resumable (skips pages
@@ -164,7 +164,7 @@ already loaded) and takes `--limit N`. Runs on the database machine itself, wher
 second logged, so the full-load time can be estimated.
 **Dependencies:** 1.A3. **Files:** `scripts/load_m.py`. **Scope:** M.
 
-### Task 1.A5: full M load (overnight)
+### Task 1.A5: full M load (done: 11.5 min, all counts match, verify ok)
 
 **Description:** Run the loader over all of M in the background on the database machine (inside
 `tmux` or `nohup`, so it survives a closed SSH session), logging to `data/load_m.log`.
