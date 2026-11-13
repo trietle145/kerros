@@ -24,7 +24,8 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
 - History: all of dataset M in one system-versioned `article` table with real timestamps.
 - Search: paragraphs from M's newest version per article, cleaned to plain text. One paragraph
   per passage, short ones merged up to ~300 words, title + section heading prefixed before
-  embedding. One bge-m3 vector each, embedded on a GPU (Colab T4; Modal as fallback).
+  embedding. One bge-m3 vector each. Where embedding runs is set per machine (`.env`); the rule
+  is the same model and settings for paragraphs and questions.
 - Keep the shipped S article vectors for whole-article search and the sv/en articles.
 - Answer-writing model: a cloud model on hackathon credits, kept as a setting.
 - Working habits on the PC: checkout `main` first, create `.venv` first, data under `data/`
@@ -32,18 +33,24 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
 
 ## Phases
 1. Data in: M into the versioned table, S with its vectors.
-2. Paragraphs: clean, split, embed, index. Beat the starter's 76% top-5 on the 37 test questions.
-3. Cited answers on the web page.
-4. Paragraph history: track each paragraph across versions.
-5. One added feature.
-6. Scale numbers on L, polish, demo rehearsal.
+2. Paragraphs: clean, split, embed, index. Beat the starter's 76% top-5 on the 37 test questions,
+   plus our own paragraph-level questions (see docs/architecture.md, Evaluation).
+3. Cited answers and article summaries on the web page.
+4. One added feature from docs/ideas.md (paragraph history, if needed, on ~200 pilot articles).
+5. Scale numbers on L, polish, demo rehearsal.
+Before phase 1: the "First hour" checks in docs/architecture.md.
 
-## Architecture (draft: docs/architecture.md)
-- Core = cited Q&A + article summaries. Retrieval: paragraph vectors, then hybrid with FULLTEXT
-  fused by rank (recommended, not yet confirmed).
+## Architecture (docs/architecture.md)
+- Core = cited Q&A + article summaries. Retrieval (decided): hybrid, paragraph vectors plus
+  FULLTEXT fused by rank in one SQL statement. Build vector-only first, then add the keyword half.
 - Tables: `article` (versioned, every revision), `passage` (current paragraphs, plain table, keeps
   `page_id`, `rev_id`, `heading`, `text_hash`, FULLTEXT on text), `passage_vector` (keyed by
-  `text_hash`, VECTOR(1024) + index), `article_vector` (shipped S vectors).
+  `text_hash`, VECTOR(1024) + index), `article_vector` (shipped S vectors), `revert_event`
+  (one row per revert). Definitions: `schema.sql`.
+- Time side (decided): two core views, article as of a date and an edit timeline with reverts.
+  Reverts are found once after loading and stored in `revert_event`. The Q&A answers from the
+  newest text; `/ask` takes an optional `as_of` that is unused for now. Each cited source has a
+  History button to the timeline. Yearly partitions on `article` stay.
 - Keep these three choices: vectors keyed by text hash (old versions can get vectors later);
   every paragraph keeps its source `rev_id` (citations link to `?oldid=`); the full history is
   loaded even though the core reads only the newest revision.
@@ -64,7 +71,8 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
 ## Stack (from the starter repos; reuse before writing new code)
 - MariaDB 12.x (`mariadb:lts` in Docker). Vector search needs 11.7+;
   `system_versioning_insert_history` needs 10.11+.
-- Python 3.11+, Flask, Ollama running `bge-m3` for embeddings (must match the dataset vectors).
+- Python 3.11+ (the PC has 3.13), Flask, `bge-m3` for embeddings. Where it runs (Ollama, a GPU
+  notebook, a hosted endpoint) is per machine.
 - Answer-writing LLM: a cloud model, read from a setting so it can be swapped for Ollama.
 - Starter code to reuse:
   - `mariadb-vector-wikipedia-rag`: `schema.sql`, `load.py`, `embed.py`, `app.py`,
@@ -84,13 +92,13 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
 - Reverts: same `sha1` as an earlier version. Most reverts are vandalism cleanup; an edit war is
   *mutual* reverts between named users. sha1 misses partial reverts and rewordings.
 - "Anonymous" changed meaning in 2025 (IP addresses replaced by temporary accounts).
-- **Unverified:** whether a `VECTOR INDEX` works on a system-versioned table, and whether vector
-  search combines with `FOR SYSTEM_TIME AS OF`. Test this early.
+- Vectors live in plain tables (`passage_vector`, `article_vector`), so we never need a vector
+  index on a versioned or partitioned table.
 
 ## Project docs
 - `docs/plan.md`: the rough plan (idea, decisions, phases, feature candidates, risks).
-- `docs/architecture.md`: core cited Q&A architecture (draft).
-- `docs/ideas.md`: feature ideas to pick from later.
+- `docs/architecture.md`: core cited Q&A architecture.
+- `docs/ideas.md`: open list of feature ideas; nothing in it is committed to yet.
 - `docs/research/wikipedia-problems.md`: problems worth solving, ranked, with sources.
 - `docs/research/edit-wars.md`: edit wars and vandalism, detection methods, 8 feature ideas.
 
@@ -99,7 +107,7 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
   files, checksums verified). `data/` and `.venv/` are git-ignored. No commits yet.
 - Nothing is loaded. Blocker: no MariaDB is running. Docker Desktop's disk image is on C: with
   3.6 GB free; move it to D: (or run a portable MariaDB from D:) before loading.
-- Next steps for the load: starter `schema.sql` (+ `parent_id`, `anonymous` columns), a Parquet
+- `schema.sql` (all five tables) is written. Next steps for the load: a Parquet
   loader `scripts/load_m.py` (real timestamps, resumable, `--limit`), a 20-article smoke test,
   then the full load in the background logging to `data/load_m.log`.
 

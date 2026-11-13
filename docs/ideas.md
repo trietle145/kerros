@@ -4,6 +4,11 @@
 decided. "Needs" says what each one adds on top of the core architecture in `architecture.md`.
 
 The strongest pitch is probably one reader idea plus one editor idea that share the same data.
+An outside review suggested **trust badges on answers** plus the **edit-war radar** as the pair,
+with "ask the past" on one article as a stretch. Nothing is picked yet.
+
+Ideas that need paragraph history should build it for a pilot set of about 200 articles first;
+the most edited articles cost the most, so measure on those.
 Starred ideas (★) are new since the first plan.
 
 ## For readers
