@@ -14,7 +14,8 @@ services:
     ports:
       # Default: reachable from this machine only. On the shared machine set DB_BIND to its
       # Tailscale IP. Never 0.0.0.0: Docker's published ports bypass the host firewall.
-      - "${DB_BIND:-127.0.0.1}:3306:3306"
+      # DB_PORT: the port on the host (3307 on Triet's PC, where a MySQL service holds 3306).
+      - "${DB_BIND:-127.0.0.1}:${DB_PORT:-3306}:3306"
     volumes:
       - dbdata:/var/lib/mysql
       - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro

@@ -135,9 +135,10 @@ Split between two people: **A = database and history**, **B = paragraphs, vector
 - `.venv` exists (Python 3.13, `mariadb` + `pyarrow`). Dataset M is in `data/m/` (16 Parquet
   files, checksums verified). `data/` and `.venv/` are git-ignored. Only docs and `schema.sql`
   are committed; no code exists yet.
-- Nothing is loaded. Blocker: no MariaDB is running. Plan: a Verda machine with
-  `docker-compose.yml` (written, syntax checked, not yet run). If it runs on this PC instead,
-  Docker Desktop's disk image must move from C: (2.9 GB free) to D: (89 GB) first.
+- MariaDB 12.3.3 runs on this PC in Docker (`docker compose up -d`), data volume on D:, host port
+  **3307** (a MySQL 9.4 Windows service holds 3306; leave it alone). Schema applied, ef_search=80
+  confirmed, login `triet`. Nothing is loaded yet. The Verda machine with
+  `docker-compose.yml` stays the plan for an always-on shared host.
 - `.env.example` lists every setting; copy to `.env` (git-ignored) and fill in.
 - `schema.sql` (all five tables) is written. Next steps for the load: a Parquet
   loader `scripts/load_m.py` (real timestamps, resumable, `--limit`), a 20-article smoke test,
