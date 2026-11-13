@@ -48,7 +48,12 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
   DISTANCE=cosine` on every vector table, and `SET mhnsw_ef_search = 80` on every connection that
   searches. Defaults (M=6) found only 79% of the true top 10. Re-measure recall with
   `index_recall.py` when the number of vectors changes, but start from these values.
-- Answer-writing model: a cloud model on hackathon credits, kept as a setting.
+- Answer-writing model: Claude API ($20 per person) or Gemini, kept as a setting in `.env`.
+- **One shared database**, owned by person A: a cloud machine (Verda credits) running
+  `docker-compose.yml`, datasets downloaded straight onto it, both people connect over Tailscale
+  with their own logins. Port 3306 is never opened to the internet (`DB_BIND` = Tailscale IP).
+  Fallback host: A's PC with the data on D:. Embedding runs on a GPU for about an hour (Modal or
+  Verda). Nobody else loads the big data; a ~20-article local copy is optional.
 - Working habits on the PC: planning work goes on the `planning` branch, create `.venv` first,
   data under `data/` (never committed).
 
@@ -128,8 +133,10 @@ Split between two people: **A = database and history**, **B = paragraphs, vector
 - `.venv` exists (Python 3.13, `mariadb` + `pyarrow`). Dataset M is in `data/m/` (16 Parquet
   files, checksums verified). `data/` and `.venv/` are git-ignored. Only docs and `schema.sql`
   are committed; no code exists yet.
-- Nothing is loaded. Blocker: no MariaDB is running. Docker Desktop's disk image is on C: with
-  2.9 GB free (D: has 89 GB); move it to D: (or run a portable MariaDB from D:) before loading.
+- Nothing is loaded. Blocker: no MariaDB is running. Plan: a Verda machine with
+  `docker-compose.yml` (written, syntax checked, not yet run). If it runs on this PC instead,
+  Docker Desktop's disk image must move from C: (2.9 GB free) to D: (89 GB) first.
+- `.env.example` lists every setting; copy to `.env` (git-ignored) and fill in.
 - `schema.sql` (all five tables) is written. Next steps for the load: a Parquet
   loader `scripts/load_m.py` (real timestamps, resumable, `--limit`), a 20-article smoke test,
   then the full load in the background logging to `data/load_m.log`.

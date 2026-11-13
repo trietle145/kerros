@@ -32,9 +32,10 @@ where editors reverted each other.
 | Paragraph unit | One paragraph; short ones merged up to ~300 words. Title + section heading prepended only when embedding. |
 | Retrieval | Hybrid (vectors + `FULLTEXT`, fused by rank). Built vector-only first. |
 | Vector index | Fixed, recommended by MariaDB: `M=16 DISTANCE=cosine` on every vector index, `SET mhnsw_ef_search = 80` on every search connection. Defaults found only 79% of the true top 10. |
-| Answer model | A cloud model on hackathon credits, read from a setting. |
+| Answer model | Claude API ($20 per person) or Gemini, read from `.env`. |
 | S vectors | Loaded as shipped, for whole-article search and the sv/en articles. |
-| Database | MariaDB 11.7+ on person A's D: drive, shared with person B over Tailscale. A VPS later if the demo needs to be always on. |
+| Database | **One** shared MariaDB, owned by A, on a cloud machine (Verda credits, CPU-only if offered), run with `docker-compose.yml`. Datasets downloaded straight onto it. Both reach it over Tailscale with their own logins; port 3306 is never open to the internet. Fallback host: A's PC with the data on D:. B never loads the big data; a small local copy (~20 articles, same compose file) is optional. |
+| GPU | Embedding runs on a GPU for about an hour: Modal ($100 per person) or a Verda GPU machine, then the vectors are loaded into the shared database. |
 
 **Fixed before embedding** (changing them later means embedding again): the chunking rule and the
 exact text that is embedded. **Started early:** the full M load, which takes all night. Everything
@@ -55,8 +56,8 @@ never committed.
 
 ```
             A: database and history                 B: paragraphs, vectors, answers
-Phase 1     1.A1 MariaDB on D:                      1.B1 Paragraphs from Parquet (no DB needed)
-            1.A2 Share with B (Tailscale)           1.B2 Embed on a GPU
+Phase 1     1.A1 Verda machine + docker compose     1.B1 Paragraphs from Parquet (no DB needed)
+            1.A2 Tailscale + logins for B           1.B2 Embed on a GPU (Modal / Verda)
             1.A3 Schema + smoke test                1.B3 Download S, write load_s.py
             1.A4 load_m.py, 20-article test         1.B4 Load passages + vectors   (needs 1.A3)
             1.A5 Full M load, overnight             1.B5 Load S vectors            (needs 1.A3)
@@ -70,11 +71,18 @@ Phase 2     2.A1 Revert detection  (needs 1.A5)     2.B1 Vector search + eval
 The two halves only meet at the database tables and two files whose shape is agreed in task 1.0.
 B can work for most of Phase 1 without a running database.
 
+**Working on one shared database:** each person has their own login; bulk loads run on the
+database machine itself (fastest); say so before dropping, reloading or changing a table, since
+it hits both people at once.
+
 ---
 
 ## Phase 1: get running (data in)
 
-Goal: MariaDB runs on D:, both people can reach it, and all four data tables are filled.
+Goal: one shared MariaDB runs, both people can reach it, and all four data tables are filled.
+
+**Before starting:** claim the Verda, Modal and Claude credits, and ask the MariaDB mentors whether
+they host a database for teams (that would replace 1.A1).
 
 ### Task 1.0 (both, 15 min): agree the hand-over formats
 
@@ -85,43 +93,49 @@ halves can be built in parallel.
 - [ ] `data/passages.parquet` columns: `page_id, rev_id, title, position, heading, text, text_hash`
       (`text_hash` = SHA-256 of `text`, 32 bytes).
 - [ ] `data/passage_vectors.parquet` columns: `text_hash, model, embedding` (1024 float32, normalised).
-- [ ] `.env.example` lists `DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, EMBED_MODEL, LLM_PROVIDER, LLM_MODEL, LLM_API_KEY`.
+- [ ] `.env.example` (already committed) has every key both people need.
 
-**Verification:** both people have read and agreed; `.env.example` committed, `.env` git-ignored.
-**Dependencies:** none. **Files:** `.env.example`, `.gitignore`. **Scope:** XS.
+**Verification:** both people have read and agreed; `.env` is git-ignored.
+**Dependencies:** none. **Files:** `.env.example`. **Scope:** XS.
 
-### Task 1.A1: MariaDB running on D:
+### Task 1.A1: shared MariaDB on a cloud machine
 
-**Description:** C: has 2.9 GB free, so the database must live on D:. Recommended: the official
-Windows ZIP of the current MariaDB LTS (11.7 or later), unpacked to `D:\mariadb`, data directory on
-D:, started from a script. Alternative: move Docker Desktop's disk image to D: and run `mariadb:lts`.
+**Description:** Rent one machine on Verda (CPU-only if offered; ≥ 8 GB RAM, ≥ 60 GB disk),
+install Docker, clone the repo, fill in `.env` and run `docker compose up -d`. The compose file
+starts `mariadb:lts` with the fixed vector settings and applies `schema.sql` on the first start.
+Download datasets M and S from GitHub straight onto the machine into `data/`.
+**Fallback** if Verda does not work out: the same compose file on A's PC, with Docker Desktop's
+disk image moved to D: (C: has 2.9 GB free).
 
 **Acceptance criteria:**
 - [ ] `SELECT VERSION()` returns 11.7 or later.
-- [ ] The data directory is on D: and D: has ≥ 30 GB free.
-- [ ] A database `wiki` and a non-root user with a password from `.env` exist.
+- [ ] `SHOW TABLES` lists the five tables from `schema.sql`.
+- [ ] M and S are on the machine with checksums verified.
 
 **Verification:** `SELECT VEC_DISTANCE_COSINE(VEC_FromText('[1,0]'), VEC_FromText('[0,1]'));` returns 1.
-**Dependencies:** none. **Files:** `scripts/start_db.ps1` (or a README note). **Scope:** S.
+**Dependencies:** none. **Files:** `docker-compose.yml`, `.env.example` (both exist). **Scope:** S.
 
 ### Task 1.A2: B can reach the database
 
-**Description:** Both install Tailscale; MariaDB accepts connections from the Tailscale network only.
-Port 3306 is never opened on the router.
+**Description:** Install Tailscale on the machine and both laptops. Set `DB_BIND` in the machine's
+`.env` to its Tailscale IP and restart the container, so MariaDB listens only on the Tailscale
+network. Create a separate MariaDB login for each person.
 
 **Acceptance criteria:**
-- [ ] B runs `SELECT 1` from their machine against A's Tailscale address.
-- [ ] Connecting from outside the Tailscale network fails.
+- [ ] B runs `SELECT 1` from their laptop against the machine's Tailscale IP with their own login.
+- [ ] Connecting to the machine's public IP on port 3306 fails.
 
-**Verification:** B's `mariadb -h <tailscale-ip> -u <user> -p wiki -e "SELECT 1"` works.
-**Dependencies:** 1.A1. **Files:** none (setup note in README). **Scope:** XS.
+**Verification:** B's `mariadb -h <tailscale-ip> -u <user> -p wiki -e "SELECT 1"` works; the same
+against the public IP times out.
+**Dependencies:** 1.A1. **Files:** setup note in README. **Scope:** XS.
 
-### Task 1.A3: schema and smoke test
+### Task 1.A3: smoke test
 
-**Description:** Apply `schema.sql` and prove the MariaDB features we rely on work on this install.
+**Description:** Prove the MariaDB features we rely on work on this install (`schema.sql` was
+applied by the container in 1.A1).
 
 **Acceptance criteria:**
-- [ ] All five tables exist (`article`, `passage`, `passage_vector`, `article_vector`, `revert_event`).
+- [ ] `SELECT @@mhnsw_ef_search` returns 80.
 - [ ] With 3 fake rows, a vector search (subquery + `ORDER BY VEC_DISTANCE_COSINE ... LIMIT`) and a
       `FULLTEXT` search each return rows.
 - [ ] Finnish word endings: noted whether `MATCH ... AGAINST('Kekkonen')` finds a row containing "Kekkosen".
@@ -133,7 +147,7 @@ Port 3306 is never opened on the router.
 
 **Description:** `scripts/load_m.py` writes every version of each article from `data/m/*.parquet`
 into `article` with its real timestamp, based on the SVT starter's `load.py`. Resumable (skips pages
-already loaded) and takes `--limit N`.
+already loaded) and takes `--limit N`. Runs on the database machine itself, where M was downloaded.
 
 **Acceptance criteria:**
 - [ ] `--limit 20` loads 20 articles with all their versions.
@@ -147,7 +161,8 @@ second logged, so the full-load time can be estimated.
 
 ### Task 1.A5: full M load (overnight)
 
-**Description:** Run the loader over all of M in the background, logging to `data/load_m.log`.
+**Description:** Run the loader over all of M in the background on the database machine (inside
+`tmux` or `nohup`, so it survives a closed SSH session), logging to `data/load_m.log`.
 
 **Acceptance criteria:**
 - [ ] `SELECT COUNT(*) FROM article FOR SYSTEM_TIME ALL` = 862,076.
@@ -161,7 +176,8 @@ second logged, so the full-load time can be estimated.
 **Description:** `scripts/build_passages.py` reads `data/m/*.parquet` directly (no database), takes
 the newest version of each article, cleans the wikitext to plain text (reuse the starter's cleaner),
 splits it into paragraphs (short ones merged up to ~300 words) and writes `data/passages.parquet`
-in the 1.0 format. Takes `--limit N` and `--titles`.
+in the 1.0 format. Takes `--limit N` and `--titles`. Run it wherever a copy of M is: A's PC
+already has one on D:, the database machine has another.
 
 **Acceptance criteria:**
 - [ ] On 3 hero articles (*Talvisota*, *Suomen sisällissota*, one more) the paragraphs read cleanly:
@@ -175,8 +191,9 @@ in the 1.0 format. Takes `--limit N` and `--titles`.
 ### Task 1.B2: embed the paragraphs
 
 **Description:** `scripts/embed_passages.py` embeds each distinct paragraph text with bge-m3 (input
-= title + heading + text, normalised) and writes `data/passage_vectors.parquet`. Runs on a GPU:
-local NVIDIA card if there is one, otherwise Colab or Kaggle. Time it on 20 articles first.
+= title + heading + text, normalised) and writes `data/passage_vectors.parquet`. Runs on a GPU
+for about an hour: Modal (per-second billing, $100 per person) or a Verda GPU machine; Colab or
+Kaggle as a free fallback. Time it on 20 articles first.
 
 **Acceptance criteria:**
 - [ ] 20-article pilot: paragraphs per second measured, full-run time estimated.
@@ -384,9 +401,10 @@ lifetimes for all articles if the highlight needs them, tidy the page, rehearse 
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| No running database (C: has 2.9 GB free) | High | 1.A1 first: MariaDB on D: |
-| A's PC sleeps, B loses the database | Medium | Turn off sleep while working; move to a VPS if it hurts |
-| Embedding without a GPU takes many hours | High | Colab or Kaggle; time a 20-article pilot first (1.B2) |
+| No running database | High | 1.A1 first: shared machine with docker compose; A's PC (D:) as fallback |
+| Verda credits run out (a GPU machine left on all weekend) | Medium | CPU-only machine for the database; GPU only for the embedding hour (Modal bills per second) |
+| Someone breaks the shared database for both | Medium | Own logins; announce drops and reloads; loaders are resumable |
+| Embedding without a GPU takes many hours | High | Modal or Verda GPU; time a 20-article pilot first (1.B2) |
 | Wikitext cleaning leaves junk in paragraphs | Medium | Read the 3 hero articles early (1.B1) |
 | Paragraph and question vectors made differently | High | Five-question check, cosine > 0.99 (1.B2) |
 | Finnish word endings weaken `FULLTEXT` | Low | Vector half carries meaning; keyword half for exact names and years (1.A3) |
