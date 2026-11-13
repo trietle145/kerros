@@ -95,6 +95,8 @@ Split between two people: **A = database and history**, **B = paragraphs, vector
   Use for SVT, edit wars and citation history.
 - **L**: all 568,416 fi articles, current version, Markdown, no vectors. Use only to show scaling.
 - Links back: `https://fi.wikipedia.org/?curid=<page_id>`, one version: `?oldid=<rev_id>`.
+- Download sizes (compressed): S 145 MB, M 301 MB, L 472 MB. M unpacks to 12.2 GB (full copy per
+  version), so loading M is the overnight step; loading L is short, embedding L is the slow part.
 
 ## Stack (from the starter repos; reuse before writing new code)
 - MariaDB 12.x (`mariadb:lts` in Docker). Vector search needs 11.7+;

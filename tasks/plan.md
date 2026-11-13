@@ -52,6 +52,11 @@ else can be rebuilt from the Parquet files.
 Source: https://github.com/MariaDB/mariadb-wikipedia-datasets (releases `*-2026-10`). `data/` is
 never committed.
 
+Download sizes (compressed Parquet, checked 2026-11-14): S 145 MB, M 301 MB, L 472 MB, under 1 GB
+in all. M unpacks to 12.2 GB because every version is a full copy, so **M is the slow load**
+(overnight). L is one version per article and should load in well under an hour; what makes L
+slow is embedding its paragraphs (rough guess 1–2 million) and building their index.
+
 ## How the two people split the work
 
 ```
