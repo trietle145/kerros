@@ -144,6 +144,12 @@ Split between two people: **A = database and history**, **B = paragraphs, vector
   loader `scripts/load_m.py` (real timestamps, resumable, `--limit`), a 20-article smoke test,
   then the full load in the background logging to `data/load_m.log`.
 
+## Coding style
+- Use the `ponytail` skill (level full) for every coding task: the smallest code that works,
+  reuse the starter repos and existing helpers (`scripts/common.py`) before writing new code,
+  stdlib and MariaDB features before new dependencies. Each non-trivial script leaves one
+  runnable check behind (like `load_m.py --verify`).
+
 ## Boundaries
 - Never commit secrets or API keys; read them from environment variables.
 - Do not label named editors as vandals or edit warriors in the UI; show patterns, link to diffs.
