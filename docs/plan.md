@@ -28,8 +28,8 @@ Why it stands out:
 | Team | 2 people. Who does what is split later. |
 | Audience | Both readers and editors. |
 | Form | Web app first. An extension or MCP server can come later, on the same database. |
-| Base | Cited Q&A (RAG) plus version history (SVT), joined at paragraph level. |
-| The twist | Kept as an added feature and chosen later. Candidates below. |
+| Base | Cited Q&A (RAG) plus two time views (SVT): an article as of a date, and an edit timeline with reverts. Built first. |
+| The highlight | One feature through time, added on top of the base without changing it. Which one is chosen later; the front-runner is the same question answered as of a chosen year. |
 | History data | All of dataset M in one system-versioned table, with real timestamps. |
 | Search data | Paragraphs from M's newest version of each article, cleaned to plain text, one vector each. |
 | Paragraph unit | One paragraph, short ones merged up to about 300 words, with the article title and section heading added before embedding. |
@@ -37,20 +37,24 @@ Why it stands out:
 | Answer model | A cloud model on hackathon credits, kept as a setting. |
 | Shipped S vectors | Kept for whole-article search and for the Swedish and English articles. |
 
-Still open: the twist, the split of work, and the organisers' answers on outside data and what
-"scaling" must show.
+Still open: which time feature is the highlight, the split of work, and the organisers' answers
+on outside data and what "scaling" must show.
 
 ## How it fits together
 
 See `architecture.md` for the tables, the data flow and the code layout. In short: the full
 history goes into a system-versioned `article` table; the newest version of each article is cut
 into paragraphs in a plain `passage` table; each distinct paragraph text gets one vector; the
-shipped S vectors cover whole-article search. Paragraph history (how each paragraph changed) is a
-later feature with its own table, computed from the history.
+shipped S vectors cover whole-article search. Reverts are found once after the load and stored in
+`revert_event`, which feeds the edit timeline. Paragraph history (how each paragraph changed) is
+a later feature with its own table, computed from the history.
+
+In the base, the Q&A and the time views sit side by side and meet at a History button on each
+source. The highlight is what joins them in one query.
 
 ## Phases
 
-Each phase ends with something that can be demoed.
+Rough; they get re-planned in a later session. Each phase ends with something that can be demoed.
 
 1. **Data in.** Load all of M into the versioned table. Load S with its shipped article vectors.
    Done when a query returns an article as it stood on a chosen date.
@@ -81,13 +85,15 @@ The full, longer pool of ideas is in `ideas.md`; the architecture for the core i
 | Ask the past | The same question answered as of a chosen year | Medium to high | No |
 | Vandalism survival time | How long later-reverted text stayed visible | Low | No |
 
-The first two are the safest picks. No published study covers edit wars on Finnish Wikipedia.
-Details: `docs/research/edit-wars.md`, `docs/research/wikipedia-problems.md`.
+The highlight should be a feature through time. `ideas.md` sorts the pool that way: "ask the
+past" as the front-runner, the dispute ranking as the safety net because it needs only
+`revert_event`, and source check parked. No published study covers edit wars on Finnish
+Wikipedia. Details: `docs/research/edit-wars.md`, `docs/research/wikipedia-problems.md`.
 
 ## Risks to test early
 
-- **Database running at all.** Docker's disk is on a nearly full C:. Move it to D: or use a
-  portable MariaDB on D:.
+- **Database running at all.** Docker's disk is on a nearly full C: (2.9 GB free). Move it to D:
+  or use a portable MariaDB on D:.
 - **Vector index settings.** Vectors live in plain tables, so no vector index on a versioned or
   partitioned table is needed. Still re-measure recall once all paragraph vectors are in.
 - **Tracking a paragraph across versions** (only if a picked feature needs it). Exact hash

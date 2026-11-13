@@ -1,13 +1,24 @@
 # Project: Wikipedia trust tool on MariaDB (Junction hackathon, MariaDB challenge)
 
-> Updated 2026-11-13 after the planning session. Items marked **OPEN** are not decided yet.
-> Full rough plan: https://claude.ai/artifact/92Jie7dsbM9C85B7KRBF2s
+> Updated 2026-11-13 after the architecture review. Items marked **OPEN** are not decided yet.
+> First rough plan as a page: https://claude.ai/artifact/92Jie7dsbM9C85B7KRBF2s
 
 ## Goal
 Build a Wikipedia tool that is missing or underused, with MariaDB at the core. Judged on:
 creative use of MariaDB RAG (vector search) and/or SVT (system-versioned tables), technical
 execution and scaling across datasets, usefulness to readers or editors, design and demo quality.
 Doing RAG and SVT together earns extra credit.
+
+## Resources (from the challenge page)
+- Team repo: https://github.com/trietle145/LakeBandits_junction. Planning docs are on the
+  `planning` branch.
+- Datasets (S, M, L): https://github.com/MariaDB/mariadb-wikipedia-datasets
+- RAG starter: https://github.com/MariaDB/mariadb-vector-wikipedia-rag
+- SVT starter: https://github.com/MariaDB/mariadb-system-versioning-wikipedia
+- MariaDB brings: the server with native vector search, system-versioned tables, the three
+  datasets, the starter docs and mentors on site. Any LLM, embedding model or frontend is allowed.
+- Mentors from the MariaDB Foundation, on site throughout: Kaj Arnö (Executive Chairman) and
+  Robert Silén (AI Lead). They help with data modelling, query design and scaling.
 
 ## The idea
 A web app that answers questions about Finnish history from Wikipedia and shows, for every
@@ -17,10 +28,16 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
 
 ## Decisions
 - Team of 2. Audience: both readers and editors. Web app first; extension or MCP later.
-- Base = cited Q&A (RAG) + version history (SVT), joined at paragraph level. Build this first.
-- The "twist" is one added feature, chosen later (**OPEN**). Candidates: contested-paragraph
-  heatmap, dispute ranking for all articles, citation history, source check, ask-the-past,
-  vandalism survival time.
+- Base = cited Q&A (RAG) + two time views (SVT): an article as of a date, and an edit timeline
+  with reverts. Build this first. In the base the two tracks sit side by side and meet only at
+  the History button on a cited source.
+- The highlight is one feature **through time**, added on top of the base without changing it.
+  Which one is **OPEN**. Front-runner: an answer time slider (the same question answered as of
+  a chosen year, and what changed since). Safety net: the edit-war radar, which needs only
+  `revert_event`. Sorted list: docs/ideas.md.
+- Costly to change later, so settle before embedding: the chunking rule and the exact text that
+  is embedded (old versions must be split and embedded the same way). Start the full history
+  load early; it takes all night. Everything else can be rebuilt from the Parquet files.
 - History: all of dataset M in one system-versioned `article` table with real timestamps.
 - Search: paragraphs from M's newest version per article, cleaned to plain text. One paragraph
   per passage, short ones merged up to ~300 words, title + section heading prefixed before
@@ -28,10 +45,11 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
   is the same model and settings for paragraphs and questions.
 - Keep the shipped S article vectors for whole-article search and the sv/en articles.
 - Answer-writing model: a cloud model on hackathon credits, kept as a setting.
-- Working habits on the PC: checkout `main` first, create `.venv` first, data under `data/`
-  (never committed).
+- Working habits on the PC: planning work goes on the `planning` branch, create `.venv` first,
+  data under `data/` (never committed).
 
 ## Phases
+Rough; they get re-planned in a later session.
 1. Data in: M into the versioned table, S with its vectors.
 2. Paragraphs: clean, split, embed, index. Beat the starter's 76% top-5 on the 37 test questions,
    plus our own paragraph-level questions (see docs/architecture.md, Evaluation).
@@ -56,6 +74,8 @@ Before phase 1: the "First hour" checks in docs/architecture.md.
   loaded even though the core reads only the newest revision.
 - Feature ideas (edit wars, vandalism, cross-language, contradictions...) live in docs/ideas.md
   and add tables next to these; they must not require changing the core.
+- Points to settle when the time features are built are in docs/architecture.md, "Notes for the
+  time features".
 
 ## Data (from github.com/MariaDB/mariadb-wikipedia-datasets, releases `*-2026-10`)
 - **S**: History of Finland, current versions. 19,285 fi, 4,921 sv, 5,254 en articles. Clean
@@ -97,16 +117,17 @@ Before phase 1: the "First hour" checks in docs/architecture.md.
 
 ## Project docs
 - `docs/plan.md`: the rough plan (idea, decisions, phases, feature candidates, risks).
-- `docs/architecture.md`: core cited Q&A architecture.
-- `docs/ideas.md`: open list of feature ideas; nothing in it is committed to yet.
+- `docs/architecture.md`: the base (cited Q&A and time views) and what the time features add.
+- `docs/ideas.md`: feature ideas sorted around time; the highlight is not picked yet.
 - `docs/research/wikipedia-problems.md`: problems worth solving, ranked, with sources.
 - `docs/research/edit-wars.md`: edit wars and vandalism, detection methods, 8 feature ideas.
 
 ## Current state of this folder (2026-11-13)
 - `.venv` exists (Python 3.13, `mariadb` + `pyarrow`). Dataset M is in `data/m/` (16 Parquet
-  files, checksums verified). `data/` and `.venv/` are git-ignored. No commits yet.
+  files, checksums verified). `data/` and `.venv/` are git-ignored. Only docs and `schema.sql`
+  are committed; no code exists yet.
 - Nothing is loaded. Blocker: no MariaDB is running. Docker Desktop's disk image is on C: with
-  3.6 GB free; move it to D: (or run a portable MariaDB from D:) before loading.
+  2.9 GB free (D: has 89 GB); move it to D: (or run a portable MariaDB from D:) before loading.
 - `schema.sql` (all five tables) is written. Next steps for the load: a Parquet
   loader `scripts/load_m.py` (real timestamps, resumable, `--limit`), a 20-article smoke test,
   then the full load in the background logging to `data/load_m.log`.

@@ -17,6 +17,28 @@ Next to it sit two time views from the SVT track: read any article as it stood o
 and see an article's edit timeline with its reverts. The two sides meet on the source card under
 an answer: each cited source has a History button.
 
+## Base now, time features later
+
+Everything in this document up to "Notes for the time features" is the **base**. It is built
+first and stays as it is.
+
+| | What it is | Status |
+| --- | --- | --- |
+| Base | Cited Q&A and summaries over today's paragraphs (RAG); article as of a date and edit timeline with reverts (SVT) | Build first |
+| Highlight | One feature through time from `ideas.md`, for example the same question answered as of a chosen year | Added on top; which one is open |
+
+Two things to keep in mind:
+
+- **The base alone is not the demo.** In the base, RAG answers from today's text and SVT shows
+  article history, side by side, joined only by the History button. Both starters already do
+  their half. What no starter does is search and time in the same query, and that is what the
+  highlight adds.
+- **Three things are costly to change later**, because changing them means embedding everything
+  again or loading all night again: the chunking rule, the exact text that is embedded, and the
+  full history load. Old paragraph versions must be split and embedded the same way as current
+  ones, or their hashes and vectors will not match. Everything else can be rebuilt from the
+  Parquet files in minutes to hours.
+
 ## Approaches for retrieval
 
 | | How it finds paragraphs | Good at | Weak at |
@@ -141,7 +163,8 @@ The summary mode is the same flow with one article's paragraphs instead of a sea
 ## The time side
 
 Decided: two time views are part of the core, reverts are found once and stored, the Q&A answers
-from the newest text unless a date is given, and the two sides meet on the source card.
+from the newest text (a date is accepted but ignored for now), and the two sides meet on the
+source card.
 
 ```mermaid
 flowchart TD
@@ -194,7 +217,8 @@ WHERE x.rn - x.prev_rn > 1;                   -- something in between was undone
 Each row answers: who undid whom, when, how many edits were undone, and how long the undone text
 stayed visible (`reverted_at - undone_since`). The edit-war and vandalism ideas in `ideas.md`
 become plain queries on this table. Known limit: an exact-text match misses partial reverts and
-rewordings.
+rewordings. To check on the first run: versions with no `sha1` and blanked pages all share one
+"text", so they would show up as false reverts and need filtering out.
 
 **Time in the Q&A.** Questions are answered from the newest text. The ask endpoint accepts an
 optional `as_of` date from the start and ignores it for now, so "ask the past" can be added later
@@ -235,7 +259,7 @@ lifetimes) next to these.
 | `app/embed.py` | Question → vector (bge-m3, same model and settings as the notebook) |
 | `app/llm.py` | Answer and summary prompts; provider read from a setting |
 | `app/main.py` | Flask: the page, `/ask` (optional `as_of`, unused for now), `/summarise/<page_id>`, `/article/<page_id>?as_of=`, `/article/<page_id>/timeline`, and a JSON API the extension or MCP can use later |
-| `schema.sql` | All four tables; runs on any MariaDB 11.7+ |
+| `schema.sql` | All five tables; runs on any MariaDB 11.7+ |
 | `eval/evaluate.py` | Retrieval and citation checks (below) |
 
 ## Evaluation
@@ -288,8 +312,43 @@ No idea in `ideas.md` changes the core tables or the ask flow. They fall into fo
 | More embedding | Ask the past, meaning drift, three languages | More rows in `passage_vector` (old versions, or sv/en paragraphs). Same table, same index, more GPU time. |
 | Outside the database | Source check; extension; MCP server | Fetched web pages in their own table; or a thin client on the JSON API. |
 
+## Notes for the time features
+
+From the review on 2026-11-13. None of these changes the base; they are the points to settle
+when `passage_history` and "ask the past" are built.
+
+- **Paragraph lifetimes.** `passage_history` holds one row per paragraph and lifetime: `page_id`,
+  `text_hash`, when it appeared and when it went. Load it as a system-versioned table with the
+  real edit times, like `article`, so that "the paragraphs of this article in 2010" is a
+  `FOR SYSTEM_TIME AS OF` query.
+- **No position in a lifetime row.** If position is stored, adding one paragraph near the top
+  "changes" every paragraph below it and the history fills with false edits. Show past articles
+  from `article`; search does not need the order.
+- **Old paragraph texts need a home.** `passage` holds today's paragraphs only, and its
+  `FULLTEXT` index covers only those. Old texts go in a plain table keyed by `text_hash` with its
+  own `FULLTEXT` index, next to `passage_vector`.
+- **The date filter comes after the vector search.** The index returns its nearest texts from all
+  years, and many are near-identical versions of one paragraph. Fetch about 200, join to the
+  paragraphs alive on the date, drop duplicates, keep 8. Time this early: a filtered vector
+  search fell back to a full scan (2 s) in the starter.
+- **Cite the version that was live.** An answer as of a date links to the article revision live
+  on that date, not to the revision where the paragraph first appeared.
+- **Keep the build cheap.** Split each old version into raw paragraphs and hash them first; clean
+  only the hashes not seen before. Embed only texts that stayed up for about a day or more, so
+  short-lived vandalism costs no GPU time. Count the distinct texts on the pilot articles before
+  running all 19,742.
+- **Evaluation.** Add 5 to 10 questions whose right answer differs by year, checked in the data.
+  They also serve as the demo script.
+- **Hero articles.** Check that the 3 hero articles have paragraphs that really changed before
+  building the page around them. Whether the name of the 1918 war was changed on Finnish
+  Wikipedia is not confirmed.
+
 ## Open
 
 - Which cloud model, and which credits pay for it.
 - How well `FULLTEXT` handles Finnish word endings, and whether the starter's wikitext cleaner is
   good enough for paragraphs.
+- Which time feature is the highlight (`ideas.md`).
+- The vector is keyed by the hash of the paragraph text, but the text embedded also has the
+  title and heading in front. The same text under another heading reuses the first vector. Accept
+  this for now; it mostly affects boilerplate paragraphs. Revisit if search results look wrong.
