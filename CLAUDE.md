@@ -44,6 +44,10 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
   embedding. One bge-m3 vector each. Where embedding runs is set per machine (`.env`); the rule
   is the same model and settings for paragraphs and questions.
 - Keep the shipped S article vectors for whole-article search and the sv/en articles.
+- **Vector index setting (fixed, recommended by MariaDB):** `VECTOR INDEX (embedding) M=16
+  DISTANCE=cosine` on every vector table, and `SET mhnsw_ef_search = 80` on every connection that
+  searches. Defaults (M=6) found only 79% of the true top 10. Re-measure recall with
+  `index_recall.py` when the number of vectors changes, but start from these values.
 - Answer-writing model: a cloud model on hackathon credits, kept as a setting.
 - Working habits on the PC: planning work goes on the `planning` branch, create `.venv` first,
   data under `data/` (never committed).

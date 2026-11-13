@@ -31,6 +31,7 @@ where editors reverted each other.
 | Search data | Paragraphs from M's newest version of each article, cleaned to plain text, one bge-m3 vector each. |
 | Paragraph unit | One paragraph; short ones merged up to ~300 words. Title + section heading prepended only when embedding. |
 | Retrieval | Hybrid (vectors + `FULLTEXT`, fused by rank). Built vector-only first. |
+| Vector index | Fixed, recommended by MariaDB: `M=16 DISTANCE=cosine` on every vector index, `SET mhnsw_ef_search = 80` on every search connection. Defaults found only 79% of the true top 10. |
 | Answer model | A cloud model on hackathon credits, read from a setting. |
 | S vectors | Loaded as shipped, for whole-article search and the sv/en articles. |
 | Database | MariaDB 11.7+ on person A's D: drive, shared with person B over Tailscale. A VPS later if the demo needs to be always on. |
