@@ -1,8 +1,8 @@
 # Architecture: cited Q&A and time views
 
 2026-11-13. Retrieval approach decided: **hybrid (B)**. The rest follows from decisions already
-made (see `plan.md`). The time side was decided the same day (see "The time side"). Feature
-ideas stay an open list in `ideas.md`.
+made (see `tasks/plan.md`). The time side was decided the same day (see "The time side"). Feature
+ideas stay an open list in `tasks/plan.md` (Phase 3).
 
 ## What the core does
 
@@ -25,7 +25,7 @@ first and stays as it is.
 | | What it is | Status |
 | --- | --- | --- |
 | Base | Cited Q&A and summaries over today's paragraphs (RAG); article as of a date and edit timeline with reverts (SVT) | Build first |
-| Highlight | One feature through time from `ideas.md`, for example the same question answered as of a chosen year | Added on top; which one is open |
+| Highlight | One feature through time from the feature pool in `tasks/plan.md`, for example the same question answered as of a chosen year | Added on top; which one is open |
 
 Two things to keep in mind:
 
@@ -215,14 +215,14 @@ WHERE x.rn - x.prev_rn > 1;                   -- something in between was undone
 ```
 
 Each row answers: who undid whom, when, how many edits were undone, and how long the undone text
-stayed visible (`reverted_at - undone_since`). The edit-war and vandalism ideas in `ideas.md`
+stayed visible (`reverted_at - undone_since`). The edit-war and vandalism ideas in the feature pool in `tasks/plan.md`
 become plain queries on this table. Known limit: an exact-text match misses partial reverts and
 rewordings. To check on the first run: versions with no `sha1` and blanked pages all share one
 "text", so they would show up as false reverts and need filtering out.
 
 **Time in the Q&A.** Questions are answered from the newest text. The ask endpoint accepts an
 optional `as_of` date from the start and ignores it for now, so "ask the past" can be added later
-without changing the interface. It stays in `ideas.md`.
+without changing the interface. It stays in the feature pool in `tasks/plan.md`.
 
 **The source card** is a UI choice with no storage of its own: its numbers come from a count on
 `article` and on `revert_event` for that `page_id`.
@@ -242,7 +242,7 @@ years be archived.
    edit-war, vandalism and "what changed" ideas all start from that table, and the load takes all
    night.
 
-Nothing in `ideas.md` needs the core to change; those ideas add tables (revert events, paragraph
+Nothing in the feature pool in `tasks/plan.md` needs the core to change; those ideas add tables (revert events, paragraph
 lifetimes) next to these.
 
 ## Code layout
@@ -303,7 +303,7 @@ paragraphs and questions are embedded with the same model and settings.
 
 ## What adding a feature later costs
 
-No idea in `ideas.md` changes the core tables or the ask flow. They fall into four groups:
+No idea in the feature pool in `tasks/plan.md` changes the core tables or the ask flow. They fall into four groups:
 
 | Group | Ideas | What gets added |
 | --- | --- | --- |
@@ -348,7 +348,7 @@ when `passage_history` and "ask the past" are built.
 - Which cloud model, and which credits pay for it.
 - How well `FULLTEXT` handles Finnish word endings, and whether the starter's wikitext cleaner is
   good enough for paragraphs.
-- Which time feature is the highlight (`ideas.md`).
+- Which time feature is the highlight (the feature pool in `tasks/plan.md`).
 - The vector is keyed by the hash of the paragraph text, but the text embedded also has the
   title and heading in front. The same text under another heading reuses the first vector. Accept
   this for now; it mostly affects boilerplate paragraphs. Revisit if search results look wrong.

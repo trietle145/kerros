@@ -1,7 +1,7 @@
 # Project: Wikipedia trust tool on MariaDB (Junction hackathon, MariaDB challenge)
 
-> Updated 2026-11-13 after the architecture review. Items marked **OPEN** are not decided yet.
-> First rough plan as a page: https://claude.ai/artifact/92Jie7dsbM9C85B7KRBF2s
+> Updated 2026-11-14. Items marked **OPEN** are not decided yet.
+> The plan and task list: `tasks/plan.md`.
 
 ## Goal
 Build a Wikipedia tool that is missing or underused, with MariaDB at the core. Judged on:
@@ -34,7 +34,7 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
 - The highlight is one feature **through time**, added on top of the base without changing it.
   Which one is **OPEN**. Front-runner: an answer time slider (the same question answered as of
   a chosen year, and what changed since). Safety net: the edit-war radar, which needs only
-  `revert_event`. Sorted list: docs/ideas.md.
+  `revert_event`. Sorted list: `tasks/plan.md`, Phase 3.
 - Costly to change later, so settle before embedding: the chunking rule and the exact text that
   is embedded (old versions must be split and embedded the same way). Start the full history
   load early; it takes all night. Everything else can be rebuilt from the Parquet files.
@@ -48,15 +48,14 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
 - Working habits on the PC: planning work goes on the `planning` branch, create `.venv` first,
   data under `data/` (never committed).
 
-## Phases
-Rough; they get re-planned in a later session.
-1. Data in: M into the versioned table, S with its vectors.
-2. Paragraphs: clean, split, embed, index. Beat the starter's 76% top-5 on the 37 test questions,
-   plus our own paragraph-level questions (see docs/architecture.md, Evaluation).
-3. Cited answers and article summaries on the web page.
-4. One added feature from docs/ideas.md (paragraph history, if needed, on ~200 pilot articles).
-5. Scale numbers on L, polish, demo rehearsal.
-Before phase 1: the "First hour" checks in docs/architecture.md.
+## Phases (tasks with acceptance criteria in `tasks/plan.md`)
+Split between two people: **A = database and history**, **B = paragraphs, vectors and answers**.
+1. Get running: MariaDB on D:, shared over Tailscale; M loaded (overnight); paragraphs built,
+   embedded on a GPU and loaded; S vectors loaded.
+2. The base: cited answers (vector, then hybrid; beat the starter's 76% top-5), time views
+   (article as of a date, timeline with reverts), History button joining them.
+3. The highlight through time (**OPEN**, planned after Phase 2).
+4. Scale numbers on L, polish, demo rehearsal (**OPEN**).
 
 ## Architecture (docs/architecture.md)
 - Core = cited Q&A + article summaries. Retrieval (decided): hybrid, paragraph vectors plus
@@ -72,8 +71,8 @@ Before phase 1: the "First hour" checks in docs/architecture.md.
 - Keep these three choices: vectors keyed by text hash (old versions can get vectors later);
   every paragraph keeps its source `rev_id` (citations link to `?oldid=`); the full history is
   loaded even though the core reads only the newest revision.
-- Feature ideas (edit wars, vandalism, cross-language, contradictions...) live in docs/ideas.md
-  and add tables next to these; they must not require changing the core.
+- Feature ideas (edit wars, vandalism, cross-language, contradictions...) live in `tasks/plan.md`
+  (Phase 3) and add tables next to these; they must not require changing the core.
 - Points to settle when the time features are built are in docs/architecture.md, "Notes for the
   time features".
 
@@ -116,13 +115,12 @@ Before phase 1: the "First hour" checks in docs/architecture.md.
   index on a versioned or partitioned table.
 
 ## Project docs
-- `docs/plan.md`: the rough plan (idea, decisions, phases, feature candidates, risks).
+- `tasks/plan.md`: the one planning file (idea, decisions, phases and tasks, feature pool, risks).
 - `docs/architecture.md`: the base (cited Q&A and time views) and what the time features add.
-- `docs/ideas.md`: feature ideas sorted around time; the highlight is not picked yet.
 - `docs/research/wikipedia-problems.md`: problems worth solving, ranked, with sources.
 - `docs/research/edit-wars.md`: edit wars and vandalism, detection methods, 8 feature ideas.
 
-## Current state of this folder (2026-11-13)
+## Current state of this folder (2026-11-14)
 - `.venv` exists (Python 3.13, `mariadb` + `pyarrow`). Dataset M is in `data/m/` (16 Parquet
   files, checksums verified). `data/` and `.venv/` are git-ignored. Only docs and `schema.sql`
   are committed; no code exists yet.
