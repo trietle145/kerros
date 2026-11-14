@@ -105,18 +105,27 @@ index's top 10, 50 random stored vectors as queries). Both people run it on thei
 **Verification:** `python scripts/load_vectors.py --verify` (counts, the join check, recall).
 **Dependencies:** 1.A6 (passages), 1.A7 (vectors). **Files:** `scripts/load_vectors.py`. **Scope:** S.
 
-### Task 2.A1 (A): revert detection
+### Task 2.A1 (A): revert detection (done 2026-11-14, on the server)
 
-**Description:** `scripts/build_reverts.sql` fills `revert_event` from `article` (sketch in
-`docs/architecture.md`). Filter out versions with no `sha1` and blanked pages, which would show up as
-false reverts.
+**Result:** **46,015 reverts in 6,856 articles**, built in 16 s by one `INSERT ... SELECT`
+(window functions over all 862,076 versions). 31,519 (68%) undid an anonymous edit, i.e. mostly
+vandalism cleanup. *Talvisota*: **328**, exactly the starter's number. Excluded as the reverting
+version: 483 versions with no sha1 (hidden by admins) and 202 blanked ones. 82% of detected
+reverts have an undo/rollback/review-reject edit summary (*Kumottu*, *kumottiin*, *Hylättiin*,
+*rv*, *PAL*) against 3% of other edits.
+
+**Description:** `scripts/build_reverts.py` fills `revert_event` from `article` with the SQL
+from `docs/architecture.md`, done without a self-join (LEAD gives the first undone editor). One
+file instead of a `.sql`, so it carries its own check.
 
 **Acceptance criteria:**
-- [ ] *Talvisota* shows a revert count in the same range as the starter README's 328.
-- [ ] 10 random reverts checked against their Wikipedia diffs look right.
+- [x] *Talvisota* shows a revert count in the same range as the starter README's 328. (328.)
+- [x] 10 random reverts checked against their Wikipedia diffs look right. (9 carry a revert
+      summary; the 10th is 5 named edits undone after 2 min with no summary, likely a self-revert.)
 
-**Verification:** counts per article; the 10 spot checks noted.
-**Dependencies:** 1.A5. **Files:** `scripts/build_reverts.sql`. **Scope:** S.
+**Verification:** `python scripts/build_reverts.py --verify 30`: 30 random articles + Talvisota
+recomputed in plain Python, all identical to the table.
+**Dependencies:** 1.A5. **Files:** `scripts/build_reverts.py`. **Scope:** S.
 
 ### Task 2.A2 (A): time-view endpoints and stats()
 
