@@ -14,5 +14,7 @@ timeout = 120                # a then-vs-now answer can take ~15 s; leave room
 
 def post_worker_init(worker):
     from app.embed import embed
+    from app.graph import link_index
     embed(["warm up"])
-    worker.log.info("bge-m3 loaded")
+    link_index()                 # ~3 s: the wiki-link index behind /api/graph
+    worker.log.info("bge-m3 loaded, link index built")
