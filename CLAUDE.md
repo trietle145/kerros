@@ -63,12 +63,18 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
   JOIN in MariaDB). Keyword half = `FULLTEXT(title, heading, text)` in boolean mode with **prefix
   terms** built in Python, because FULLTEXT has no Finnish stemming: words of 6+ letters drop
   their last 3 letters (min 4) and get `*` (Kekkonen → `Kekko*`); numbers and short words exact.
+- **As built:** hybrid over **three** lists (passage vectors, FULLTEXT on **names and years only**,
+  whole-article S vectors), RRF in one statement. Starter's 37 questions: hit@5 76%, hit@10 86%
+  (= the starter's best, but with paragraph-level citations); keyword half on every word was
+  worse (70%). Table and reasons: docs/architecture.md, "Approaches for retrieval" and "Design
+  choices at a glance (for the pitch)".
 - Keep the shipped S article vectors for whole-article search and the sv/en articles.
 - **Vector index setting (fixed, recommended by MariaDB):** `VECTOR INDEX (embedding) M=16
   DISTANCE=cosine` on every vector table, and `SET mhnsw_ef_search = 80` on every connection that
   searches. Defaults (M=6) found only 79% of the true top 10. Re-measure recall with
   `index_recall.py` when the number of vectors changes, but start from these values.
-- Answer-writing model: Claude API ($20 per person) or Gemini, kept as a setting in `.env`.
+- Answer-writing model: **Claude Opus 5.5** (`effort: low`, server-side fallback to Opus 4.8),
+  a setting in `.env`; key on the server and in A's local `.env` only. ~$0.03 per answer, ~3–4 s.
 - **Hosting (decided 2026-11-14): one always-on Verda CPU server**, `lakebandits-db`,
   CPU.4V.16G, FIN-01, Ubuntu 24.04, 80 GB, ~€1.50/day from the Lake Bandits project (€200
   credits). Set up by `scripts/server_setup.sh`; runs `docker-compose.yml` (MariaDB now; Flask
@@ -79,15 +85,15 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
   --build`. Embedding runs on Modal (`scripts/modal_embed.py`); questions are embedded on the
   CPU of whatever machine runs the app. Local Docker MariaDB copies still work for development.
   **Delete (not shut down) the instance after the event**; shut-down instances still bill.
-- Branches: `planning` = integration (shared files and docs); A works on `a-data-time`, B on
-  `b-search-app`, merged into `planning` by PR; `main` gets `planning` at Phase checkpoints.
+- Branches: `planning` = integration (shared files and docs); A works on `a-data-time` (backend),
+  B on `frontend` (pages, see `docs/frontend.md` there), merged into `planning` by PR; `main` gets
+  `planning` at Phase checkpoints. `b-search-app` holds B's earlier plans (graph plan, roadmap).
   Create `.venv` first (`pip install -r requirements.txt`); data under `data/` (never committed).
 
 ## Phases (tasks with acceptance criteria in `tasks/plan.md`)
-Split between two people (revised 2026-11-14): **A = data and time** (passages, embedding,
-loading, reverts, time views), **B = search, answers and app** (retrieval, hybrid, reranker,
-prompts, Flask, eval). One owner per file and fixed contracts: `tasks/plan.md`, "How the two
-people split the work".
+Split between two people (revised again 2026-11-14): **A = all backend** (data, search, answers,
+time-aware answers, history, graph data, L at scale), **B = all frontend** (every page, the look,
+demo polish). The JSON API is the contract between them: `docs/frontend.md` (on `frontend`).
 1. Get running: MariaDB on D:, shared over Tailscale; M loaded (overnight); paragraphs built,
    embedded on a GPU and loaded; S vectors loaded.
 2. The base: cited answers (vector, then hybrid; beat the starter's 76% top-5), time views
@@ -176,13 +182,21 @@ people split the work".
   all of M, S vectors, 66,642 passages + vectors (recall 99.2%), all verified. Plus
   `revert_event` (46,015 reverts, Talvisota 328), and A's time pages run there (`app/history.py`).
   The server's repo copy is updated from a git bundle (the repo is private).
-- A's base is done (1.A6–1.A8, 2.A1–2.A3, on `a-data-time`, PR into `planning`). Phase 3 pilot
-  done on 3 hero articles; the full `passage_history` build over all 862k versions is running.
-- Loading bge-m3 needs ~5 GB free memory; short of it, it fails with misleading errors.
+- **Backend works end to end on the server** (`a-data-time`): hybrid search (`app/search.py`),
+  cited answers via Claude (`app/answer.py`, `app/llm.py`), then-vs-now answers
+  (`app/timeqa.py`) through the same `/ask`, article as-of page + timeline (`app/history.py`).
+  Full history: `passage_history` (593,195 lifetimes), `history_vector` (353,166 vectors).
+  The app runs on the server in tmux `web` (Flask dev server, port 5000, reached by tunnel);
+  `/try` is a temporary test page. Frontend: B on `frontend`, guide `docs/frontend.md`.
+- Loading bge-m3 needs ~5 GB free memory; short of it, it fails with misleading errors. The first
+  question after an app restart takes ~13 s (model load); warm it at start when deploying.
+- The server's `passage` table still holds 117 `#OHJAUS` junk rows (fixed in code); reload it at a
+  time agreed with B (~20 s, passage ids change).
 - `.env.example` lists every setting; copy to `.env` (git-ignored) and fill in.
-- Next: A: full history build → embed (~400k texts, Modal) → load `history_vector` → measure
-  speed at full size. B: search + eval (2.B1) on `b-search-app`, against the server. Then L at
-  scale (Markdown passages) for the scalability criterion.
+- Next (A): public hosting (gunicorn + Caddy + password, model warm-up); L at scale (Markdown
+  passages, Modal, recall/latency at ~2M); source-health badges; graph data for B's graph page;
+  final round: answer-level eval on new questions, then translate-before-search / reranker /
+  two-stage time search as that eval shows.
 
 ## Coding style
 - Use the `ponytail` skill (level full) for every coding task: the smallest code that works,

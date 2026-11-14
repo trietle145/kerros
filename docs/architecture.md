@@ -17,6 +17,30 @@ Next to it sit two time views from the SVT track: read any article as it stood o
 and see an article's edit timeline with its reverts. The two sides meet on the source card under
 an answer: each cited source has a History button.
 
+The highlight joins them in one question: *"what did Wikipedia say about this in 2008, and what
+has changed since?"* (section "Time-aware retrieval"). Built and working on all 862,076 versions.
+
+## Design choices at a glance (for the pitch)
+
+Every choice below was measured on our data (2026-11-14). Numbers are what to quote; the
+trade-off column is what to say when a judge pushes back.
+
+| Choice | Why | Evidence | Trade-off |
+| --- | --- | --- | --- |
+| **Passage = one section** (long ones split at paragraphs, ≤ ~300 words), not fixed windows, not whole articles | An edit changes only its own section, so passage boundaries stay stable across versions: that is what makes history per passage possible. Sections are also a natural size to cite | 66,642 passages, median 79 words. Old versions split the same way give **0 hash mismatches** with today's passages | 10 single paragraphs over 300 words are kept whole |
+| **Keep the whole-article vectors too, fused with passages** | Whole articles find the *topic*, passages find the *fact* and give the paragraph to cite | Passages alone: hit@1 43%, hit@10 70%. Articles alone: hit@1 22%, hit@10 78%. **Fused: hit@5 76%, hit@10 86%** (= the starter's best, with paragraph-level citations) | One extra vector query (~4 ms) |
+| **Keyword half = names and years only** (capitalised words, numbers; Finnish prefix terms like `kekko*`) | FULLTEXT has no Finnish stemming; prefix terms on every word over-match common stems | Every word: hit@5 70%. Names and years: **76%**, and faster (35 → 24 ms) | Chosen on the 37 eval questions: confirm on new questions |
+| **Fusion by RRF in one SQL statement** (`UNION ALL` + `GROUP BY`, k = 60) | No FULL OUTER JOIN in MariaDB; one round trip; the pattern MariaDB documents | Whole hybrid search: 24 ms median | Weights are equal per list (not tuned) |
+| **Vector index `M=16`, `ef_search=80`** | The default `M=6` found only 79% of the true top 10 | recall@10 **99.2–99.8%** at 66k vectors, 11–17 ms | Bigger index than the default |
+| **bge-m3, pinned, one `embed()` for passages and questions** | Multilingual (fi/sv/en questions on Finnish text); the same model as the shipped S vectors | GPU-made and CPU-made vectors: cosine **1.0**. Embedded on Modal (66k in 6.4 min, 283k in 15 min); questions on the server's CPU | Needs ~5 GB free memory to load; English/Swedish questions match a bit worse than Finnish |
+| **Vectors keyed by text hash** | An unchanged passage is embedded once, however many versions contain it | 862,076 versions → 530,885 distinct texts → **353,166 embedded** (texts live ≥ 1 day; vandalism costs no GPU time) | — |
+| **Real edit times via `system_versioning_insert_history`** | `AS OF '2008-06-01'` means "what Wikipedia showed that day" | For 15 versions 2003–2026, `AS OF` returns exactly that version's passages | — |
+| **Reverts by window functions** | One `INSERT … SELECT` over all versions instead of a Python loop | **46,015 reverts in 16 s**; Talvisota 328 = the SVT starter's count; 82% carry an undo/rollback summary (3% of other edits) | sha1 misses partial reverts |
+| **Time is a filter, never in the vector** | Validity is a date range; a year in the question would pull towards passages that *mention* that year | Then-vs-now answers find real revisions (Red prisoners 80,000 → 76,000; Mainila "probably" → "possibly") | Needs a date router |
+| **Today's counterpart by meaning, not by heading** | Headings get renamed | *Moskovan neuvottelut* (2008) → *Suomen ja Neuvostoliiton neuvottelut aluemuutoksista*, distance 0.13 | — |
+| **Answers: Claude Opus 5.5, one sentence per line ending in `[n]`, validated in code** | Every claim checkable; invalid numbers dropped, uncited sentences shown as uncited | 19/19 sentences cited in the tests, fi/en/sv; ~3–4 s, ~$0.03 per answer | Cost per answer; server-side fallback to Opus 4.8 if a request is declined |
+| **One always-on CPU server, MariaDB never public** | Cheap; GPU only for embedding runs; team access by SSH tunnel | ~€1.50/day; all data loaded and verified on it | One machine = one point of failure |
+
 ## Base now, time features later
 
 Everything in this document up to "Notes for the time features" is the **base**. It is built
@@ -50,7 +74,24 @@ Two things to keep in mind:
 **Decision: B, built as A first.** B is A plus one more query, so A works on day one and B
 follows. B is also a strong "MariaDB feature used well" point, and MariaDB documents the pattern:
 [Optimizing Hybrid Search Query with Reciprocal Rank Fusion](https://mariadb.com/docs/server/reference/sql-structure/vectors/optimizing-hybrid-search-query-with-reciprocal-rank-fusion-rrf).
-C stays useful later for cross-language features.
+
+**As built (2026-11-14): B plus C's article vectors as a third list.** Three ranked lists fused
+by RRF in one statement: passage vectors, FULLTEXT on names and years, and whole-article vectors
+(each hit contributes its article's lead passage). Measured on the starter's 37 questions
+(right Finnish article among the top distinct articles):
+
+| Lists | hit@1 | hit@5 | hit@10 | SQL median |
+| --- | --- | --- | --- | --- |
+| passage vectors | 43% | 65% | 70% | 4 ms |
+| + whole-article vectors | 35% | 73% | 86% | 8 ms |
+| + FULLTEXT, every word | 43% | 70% | 84% | 35 ms |
+| **+ FULLTEXT, names and years (built)** | 38% | **76%** | **86%** | 24 ms |
+| starter (whole articles, a hit in any language) | — | 76% | 86% | — |
+
+The remaining misses: the eval wants one specific article when our passages answer from another
+(*"Who led the army…?"* expects *Mannerheim*; Talvisota passages name him), English/Swedish
+questions against Finnish text, and topic-vs-fact questions. Levers, in order: translate the
+question to Finnish before searching, a reranker over the fused top 50.
 
 ## Chunking, embedding and keyword search
 
@@ -228,6 +269,16 @@ sequenceDiagram
 
 The summary mode is the same flow with one article's paragraphs instead of a search.
 
+**Answer generation as built** (`app/answer.py`, `app/llm.py`): the top 8 passages (at most 2
+per article) are numbered and sent with the question to Claude Opus 5.5 (`effort: low`). The
+system prompt asks for 2–5 sentences in the question's language, one per line, each ending with
+the passage number(s) it uses, using only facts in the passages. Code then parses the lines,
+drops any citation number that wasn't sent, and keeps sentences without one marked as uncited.
+A declined request is retried on Claude Opus 4.8 inside the same API call (server-side
+fallback). Measured: ~3–4 s per answer warm (search ~0.5 s, the rest is the model), ~13 s for
+the first question after a restart while bge-m3 loads, ~$0.03 per answer. Provider and model
+are `.env` settings.
+
 ## The time side
 
 Decided: two time views are part of the core, reverts are found once and stored, the Q&A answers
@@ -321,17 +372,22 @@ lifetimes) next to these.
 | `scripts/load_s.py` | Shipped S vectors → `article_vector` |
 | `scripts/build_reverts.py` | Fills `revert_event` from `article`, once after loading |
 | `scripts/build_passages.py` | Newest revision → cleaned text → one passage per section → `passages.parquet`; distinct embedding inputs to embed |
-| `scripts/embed_passages.py` | bge-m3 over the distinct texts → parquet of `text_hash, embedding`; runs wherever a GPU is |
-| `scripts/load_vectors.py` | That parquet → `passage_vector`, then builds the vector index |
+| `scripts/embed_passages.py` | bge-m3 over the distinct texts → parquet of `text_hash, embedding` (streamed); local CPU/GPU |
+| `scripts/modal_embed.py` | The same, with `embed()` on up to 8 Modal GPUs |
+| `scripts/load_vectors.py` | That parquet → `passage_vector` (or `history_vector` with `--history`); `--verify` measures recall |
+| `scripts/build_history.py` | Every version → passages → `passage_text` + system-versioned `passage_history` (lifetimes) |
+| `scripts/server_setup.sh` | One-command setup of the shared server |
 | `app/db.py` | Connection (sets `mhnsw_ef_search = 80`) |
-| `app/embed.py` | `embed()`: bge-m3 for passages *and* questions, one function so the settings match |
-| `app/search.py` | Retrieval: vector, FULLTEXT prefix terms, RRF; optional `app/rerank.py` |
-| `app/history.py` | Time queries and routes: as of a date, timeline, `stats()` for source cards |
-| `app/ask.py` | Routes: the page, `/ask`, `/summarise/<page_id>` |
-| `app/llm.py` | Answer and summary prompts; provider read from a setting |
-| `app/main.py` | Flask app: registers the `ask` and `history` blueprints (routes in `tasks/plan.md`, "Contracts"); the JSON routes are the API the extension or MCP can use later |
-| `schema.sql` | All five tables; runs on any MariaDB 11.7+ |
-| `eval/evaluate.py` | Retrieval and citation checks (below) |
+| `app/embed.py` | `embed()`: bge-m3 (pinned revision) for passages *and* questions |
+| `app/search.py` | Hybrid retrieval: passage vectors + names/years FULLTEXT + article vectors, RRF in one statement |
+| `app/answer.py` | `/ask`: search → Claude → validated cited sentences; time questions go to `timeqa` |
+| `app/timeqa.py` | Time questions: routing, passages live on a date, today's counterpart, word diffs, then-vs-now answer |
+| `app/llm.py` | `complete()`: the one model call; provider and model from `.env` |
+| `app/history.py` | Time views: article as of a date (page + JSON), timeline, `stats()` for source cards |
+| `app/ask.py` | Frontend page routes (B); `/try` in `answer.py` is a temporary test page |
+| `app/main.py` | Flask app: registers the `answer`, `history` and `ask` blueprints; the JSON routes are the API an extension or MCP can use later |
+| `schema.sql` | The core tables; `build_history.py` creates the history tables |
+| `eval/evaluate.py` | Retrieval eval on the starter's 37 questions, per list and fused |
 
 ## Evaluation
 
@@ -344,6 +400,11 @@ paragraphs and citations, so we measure three things:
    written by hand from a few hero articles. Right paragraph in the top 5 / top 10.
 3. **Citations faithful:** for each answer sentence, does the paragraph it cites actually say it?
    Checked by hand on the same questions at first; a model-graded check later if time allows.
+
+**Status (2026-11-14):** (1) done: hit@5 76%, hit@10 86% (table in "Approaches for retrieval").
+(2) and (3) are next, on 15–20 new questions not used for tuning, including then-vs-now
+questions; they also become the demo script. hit@k measures only the search step; the prompt
+affects (3), not hit@k.
 
 ## Runtime is set up per machine
 
@@ -368,10 +429,12 @@ paragraphs and questions are embedded with the same model and settings.
 - Passage = one section (lead included), long sections split at paragraphs to ~300 words; the
   title and heading are prepended only when embedding, not in the stored text. Details in
   "Chunking, embedding and keyword search".
-- `M=16`, `SET mhnsw_ef_search = 80`; re-measure recall once all passage vectors are in.
+- `M=16`, `SET mhnsw_ef_search = 80`; measured at 66k vectors: recall@10 99.2–99.8%.
 - Vector search goes in a subquery and is joined afterwards, so the index is used.
-- Hybrid: top 50 per side, RRF with k = 60.
-- Top 8 passages, at most 2 per article, go to the model.
+- Hybrid: three lists (passage vectors, names/years FULLTEXT, article vectors), top 50 per list,
+  RRF with k = 60.
+- Top 8 passages, at most 2 per article, go to the model (2 is a starting value, not measured).
+- Model: Claude Opus 5.5, `effort: low`; a `.env` setting.
 - The answer is in the question's language; the sources stay in their own language.
 
 ## What adding a feature later costs
@@ -385,7 +448,7 @@ No idea in the feature pool in `tasks/plan.md` changes the core tables or the as
 | More embedding | Ask the past, meaning drift, three languages | More rows in `passage_vector` (old versions, or sv/en paragraphs). Same table, same index, more GPU time. |
 | Outside the database | Source check; extension; MCP server | Fetched web pages in their own table; or a thin client on the JSON API. |
 
-## Time-aware retrieval: MariaDB does the time (Phase 3, being built)
+## Time-aware retrieval: MariaDB does the time (Phase 3, built)
 
 Added 2026-11-14 after a working pilot (results in `tasks/plan-a.md`, "Phase 3 pilot"). This is
 the brief's "both tracks" example: *"what did Wikipedia say about this in 2015, and what has
@@ -430,9 +493,32 @@ lifetime), `history_vector` (vectors of all texts live ≥ 1 day plus today's; k
 today's counterpart by vector distance within the article → word diff → the LLM writes "then"
 and "what changed", citing both versions.
 
-**Sizes** (pilot extrapolation, replaced by real numbers after the full run): ~350–450k texts
-live ≥ 1 day, ~40 min embedding on Modal, ~2 GB of vectors. **Open:** query speed and how many
-candidates survive the time filter at that size; side-by-side display for rewritten paragraphs.
+**Routing** (`app/timeqa.py`): history questions are full of years (1918, 1939), so a year alone
+doesn't make a time question. It needs a year from 2003 on (where M starts) **and** a cue that
+the question is about Wikipedia itself (*Wikipedia, sanoi, kertoi, muuttunut, said, changed,
+sade, ändrats*); an exact date (`2008-06-01`, `1.6.2008`) or an `as_of` from the UI also counts.
+The year and cue words are removed; the rest is the topic that gets embedded. *"What happened in
+Finland in 1918?"* and *"Mitä tapahtui vuonna 2008?"* stay plain questions.
+
+**Measured on the full history:** `passage_history` built from all 862,076 versions in 32 min
+(530,885 distinct texts, 593,195 lifetimes); 283,065 new texts embedded on Modal in ~15 min;
+`history_vector` = 353,166 vectors. A then-vs-now answer takes **~8–17 s** (the model reads up to
+12 passages), a plain one ~3 s.
+
+**Global vs two-stage time search.** The global search (vector `LIMIT 500` over all years, then
+the `AS OF` filter) leaves 6–170 passages live on the date per question in ~250 ms: the nearest
+neighbours are mostly other years' versions of the same paragraphs, so the limit has to be large.
+A two-stage variant (today's hybrid search picks ~10 articles, then their passages live on the
+date are ranked by exact distance) finds the right sections (*Moskovan rauhan ehdot* @ 2008 →
+*Rauhanehdot*) but is blind to topics whose articles were written after the date. **Built: the
+global search**, the one-statement version. Merging both is the planned improvement once a
+quality check on demo questions shows two-stage wins.
+
+**What it finds** (real answers): Red prisoners after the civil war, as of 2007 vs now: *~80,000*
+→ *76,000*, convicted *~68,000* → *~70,000*, new sentences on the 1927 amnesty and 1973
+compensation. Red terror, as of 2006: *~1,650* victims → *1,400–1,650*. Mainila shots, as of 2006:
+the war-game origin *"probably"* → *"possibly"*, border-guard observations now *"has been
+claimed"*.
 
 ## Notes for the time features
 
@@ -467,9 +553,10 @@ when `passage_history` and "ask the past" are built.
 
 ## Open
 
-- Which cloud model, and which credits pay for it.
-- Whether the starter's wikitext cleaner is good enough for passages.
-- The prefix rule (cut 3 letters, minimum 4) and the question-word list: tune on the evaluation.
-- Whether a reranker earns its latency.
-- Which time feature is the highlight: time-aware retrieval (section above) is being built; to
-  be confirmed by both people.
+- Answer-level eval on new questions (paragraph found, citations faithful).
+- Improvement levers, to pick by that eval: translate the question to Finnish before searching;
+  a reranker; two-stage merge for the time search; fewer passages for then-vs-now (speed).
+- The per-article cap (2) and the names/years keyword rule: confirm on new questions.
+- Dataset L at scale (scalability criterion).
+- Decided since: model (Claude Opus 5.5, Anthropic credits), cleaner (the SVT starter's, extended;
+  passages read cleanly), highlight (time-aware retrieval, built).
