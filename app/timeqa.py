@@ -107,7 +107,7 @@ using only the numbered passages. Passages marked THEN are from the past date; N
 
 def answer(question, r):
     """A routed time question -> the /ask JSON with kind "then_vs_now" (docs/frontend.md)."""
-    from app.answer import parse          # here, not at the top: answer.py imports this module
+    from app.answer import deep_url, parse   # here, not at the top: answer.py imports this module
     from app.history import stats
     from app.llm import complete
     with closing(connect()) as con:
@@ -146,7 +146,8 @@ def answer(question, r):
             "compare_to": r["compare_to"],
             "answer": parse(text, len(sources)) if sources else
             [{"text": "No passages from that date were found for this question.", "cites": []}],
-            "sources": [{**s, **counts[s["page_id"]]} for s in sources], "diffs": diffs}
+            "sources": [{**s, "deep_url": deep_url(s["rev_id"], s["heading"], s["text"]),
+                         **counts[s["page_id"]]} for s in sources], "diffs": diffs}
 
 
 if __name__ == "__main__":

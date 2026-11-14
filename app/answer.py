@@ -5,6 +5,7 @@ these JSON routes and never touches the database. Contract: docs/frontend.md, "A
     python -m app.answer         # self-check: 3 questions (fi, en, sv), citations validated (~$0.1)
 """
 import re
+from urllib.parse import quote
 
 from flask import Blueprint, request
 
@@ -34,6 +35,17 @@ def parse(text, n_sources):
     return out
 
 
+def deep_url(rev_id, heading, text):
+    """The exact version, scrolled to the passage: #section anchor plus a text fragment
+    (:~:text=first 5 words,last 5 words) that browsers highlight. A browser without support, or a
+    small wording mismatch with the rendered page, falls back to the section (or the top)."""
+    enc = lambda s: quote(s, safe="").replace("-", "%2D")                    # noqa: E731
+    words = text.split()
+    frag = enc(" ".join(words[:5])) + ("," + enc(" ".join(words[-5:])) if len(words) > 10 else "")
+    anchor = quote(heading.replace(" ", "_"), safe="") if heading else ""
+    return f"https://fi.wikipedia.org/?oldid={rev_id}#{anchor}:~:text={frag}"
+
+
 def answer(question, as_of=None):
     """question -> the /ask JSON. A question about how Wikipedia stood on a date (or any question
     with as_of) goes to the then-vs-now path (kind "then_vs_now"); the rest are kind "plain"."""
@@ -50,6 +62,7 @@ def answer(question, as_of=None):
     counts = stats(list({s["page_id"] for s in sources}))
     return {"question": question, "kind": "plain", "answer": parse(text, len(sources)),
             "sources": [{"n": n, **s, "url": f"https://fi.wikipedia.org/?oldid={s['rev_id']}",
+                         "deep_url": deep_url(s["rev_id"], s["heading"], s["text"]),
                          **counts[s["page_id"]]} for n, s in enumerate(sources, 1)]}
 
 
