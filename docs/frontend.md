@@ -110,6 +110,7 @@ if the model call fails.
     "n": 1, "passage_id": 0, "page_id": 1256, "rev_id": 24273471,
     "title": "Talvisota", "heading": null, "text": "Talvisota oli Neuvostoliiton ja Suomen …",
     "score": 1.0, "url": "https://fi.wikipedia.org/?oldid=24273471",
+    "deep_url": "https://fi.wikipedia.org/?oldid=24273471#:~:text=Talvisota%20k%C3%A4ytiin…",
     "edits": 2143, "reverts": 328
   }]
 }
@@ -141,6 +142,12 @@ this example until it's live:
   }]
 }
 ```
+
+**`deep_url`** (on every source, plain and then-vs-now): the same version as `url`, but scrolled
+to the passage's section and, in browsers with text-fragment support (Chrome, Edge, Safari,
+recent Firefox), with the paragraph highlighted. Use it for "Open on Wikipedia"; if the highlight
+words don't match the rendered page, the browser just lands on the section. `url` stays the plain
+citation link.
 
 `diffs[].ops` is a list of `[op, text]` with op `equal` / `delete` / `insert`, in reading order:
 render it however you like (inline marks, or two columns when `similarity` is low, say < 0.5, since
