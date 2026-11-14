@@ -14,6 +14,7 @@
 .timeline .cleanup { fill: color-mix(in srgb, var(--removed) 45%, var(--surface-2)); }
 .timeline a:hover .hit, .timeline a:focus .hit { fill: var(--surface-2); }
 .timeline a:focus { outline: none; }
+.timeline a:focus-visible .hit { fill: var(--surface-2); stroke: var(--accent); stroke-width: 2px; }
 .timeline a.sel .hit { fill: var(--rel-main); opacity: .4; }
 .timeline text { fill: var(--muted); font-size: 11px; }
 .timeline figcaption { display: flex; flex-wrap: wrap; gap: .4rem 1rem; margin-top: .5rem; color: var(--muted); font-size: .8125rem; }

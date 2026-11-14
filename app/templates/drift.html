@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Language drift · Kerros{% endblock %}
+{% block head %}<script type="module" src="{{ url_for('static', filename='drift.js') }}"></script>{% endblock %}
+{% block content %}
+<div class="page drift">
+  <header class="page-head">
+    <p class="kicker">Language drift · every paragraph version since 2003</p>
+    <h1>How Wikipedia's words for history <em>changed</em>.</h1>
+    <p class="lede">The words chosen for an event carry a point of view. Pick a topic to see which words Finnish Wikipedia used for it, year by year, and the edits where one word replaced another.</p>
+  </header>
+
+  <div class="seg" id="topics" role="tablist" aria-label="Topic"></div>
+
+  <section class="drift-main" id="drift" role="tabpanel" aria-labelledby="d-title">
+    <div class="drift-intro">
+      <div><h2 id="d-title"></h2><p id="d-note"></p></div>
+      <div class="seg seg-sm" id="d-mode" role="radiogroup" aria-label="What the chart counts">
+        <button type="button" role="radio" aria-checked="true" data-mode="share">Share of mentions</button>
+        <button type="button" role="radio" aria-checked="false" data-mode="count">Articles</button>
+      </div>
+    </div>
+    <figure class="chart" id="d-chart">
+      <div class="chart-plot" tabindex="0" role="img" aria-describedby="d-cap"><svg id="d-svg" aria-hidden="true"></svg><div class="tip" id="d-tip" hidden></div></div>
+      <figcaption id="d-cap" class="legend"></figcaption>
+    </figure>
+    <details class="table-view"><summary>Show the numbers as a table</summary><div id="d-table"></div></details>
+
+    <section class="flips" aria-labelledby="flips-head">
+      <h2 class="kicker" id="flips-head">Where one word replaced another</h2>
+      <div id="d-dir"></div>
+      <ol class="flip-list" id="d-flips"></ol>
+    </section>
+
+    <p class="method">How this is counted: one scan over 495,581 distinct paragraph texts, joined to 593,195 paragraph lifetimes
+      in a system-versioned MariaDB table with real Wikipedia edit times. An article uses a word at the end of a year when one of its
+      paragraphs live at that moment contains it. For the 1918 topics, only paragraphs that also mention 1918 count, so the Spanish
+      or Estonian wars of the same name stay out. A replacement is one edit in which a paragraph lost one word and gained the other.</p>
+  </section>
+</div>
+{% endblock %}

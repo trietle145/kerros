@@ -17,7 +17,8 @@ export function stateFor(data, year, prevYear) {
   return {
     visible, links, revs: snap.revs,
     added: links.filter(l => !before.has(key(l))),
-    removed: was.filter(l => !now.has(key(l))),
+    // a link whose node is gone leaves with the node; only links between nodes still shown flash as removed
+    removed: was.filter(l => !now.has(key(l)) && visible.has(l[0]) && visible.has(l[1])),
   };
 }
 
@@ -62,7 +63,7 @@ function selftest() {
 
   const back = stateFor(data, 2004, 2026);                              // scrubbing backwards, several years at once
   eq(back.added, [], "back added");
-  eq(back.removed, [[1, 2], [3, 1]], "back removed");
+  eq(back.removed, [], "back removed: nodes 2 and 3 are gone in 2004, so their links leave with them");
 
   eq(stateFor(data, 2026, 2026).added, [], "same year, no flashes");
   eq([...stateFor(data, 1999, 2026).visible], [], "unknown year is empty");
