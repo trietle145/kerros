@@ -30,21 +30,29 @@ network. Create a separate MariaDB login for each person.
 against the public IP times out.
 **Dependencies:** 1.A1. **Files:** setup note in README. **Scope:** XS.
 
-### Task 1.A6 (A): passages from the Parquet files
+### Task 1.A6 (A): passages (done 2026-11-14, except sending the pilot to B)
 
-**Description:** `scripts/build_passages.py` reads `data/m/*.parquet` directly (no database), takes
-the newest version of each article, cleans the wikitext to plain text (reuse the starter's cleaner),
+**Result:** 19,699 articles (43 redirects skipped, 5 with no text left) → **66,642 passages**,
+all distinct texts; median 79 words, 95% under 265, 10 over 300 (single long paragraphs, kept
+whole). 20 s for all of them. Markup left in 48 passages (<0.1%). Pilot: Talvisota, Suomen
+sisällissota, Jatkosota → 163 passages, embedded on the CPU in 4.2 min, in `data/pilot/`.
+Test questions find the right section ("Milloin talvisota alkoi?" → Talvisota lead).
+
+**Description:** `scripts/build_passages.py` reads the current rows of `article` (= M's newest
+version of each article; one query, 20 s, instead of scanning 12 GB of Parquet), cleans the
+wikitext to plain text with `scripts/wikitext.py` (the SVT starter's cleaner plus heading levels,
+entities, galleries, soft hyphens),
 cuts it into one passage per section (lead included; sections over ~300 words split at
 paragraphs; reference and link sections skipped) and writes `data/passages.parquet`
-in the 1.0 format. Takes `--limit N` and `--titles`. **Pilot first:** the 3 hero articles,
+in the 1.0 format. Takes `--titles`, `--out` and `--show N`. **Pilot first:** the 3 hero articles,
 embedded on the CPU with `app.embed.embed()`, sent to B as both files, so B builds on real
 passages from the start.
 
 **Acceptance criteria:**
-- [ ] Pilot files (3 hero articles, passages + vectors) sent to B.
-- [ ] On 3 hero articles (*Talvisota*, *Suomen sisällissota*, one more) the passages read cleanly:
+- [ ] Pilot files (3 hero articles, passages + vectors) sent to B. (Made: `data/pilot/`; send them.)
+- [x] On 3 hero articles (*Talvisota*, *Suomen sisällissota*, Jatkosota) the passages read cleanly:
       no template, table or reference markup left; `heading` NULL only for the lead; no empty texts.
-- [ ] Full run finishes; passage count (~67k expected) and distinct `text_hash` count noted.
+- [x] Full run finishes; passage count (~67k expected) and distinct `text_hash` count noted.
 
 **Verification:** print 10 random passages and read them; counts in the PR.
 **Dependencies:** 1.S. **Files:** `scripts/build_passages.py`, `scripts/wikitext.py`. **Scope:** M.
@@ -53,8 +61,10 @@ passages from the start.
 
 **Description:** `scripts/embed_passages.py` embeds each distinct passage with `app.embed.embed()`
 (input = title \n heading \n text, max 1,024 tokens, normalised) and writes `data/passage_vectors.parquet`. Runs on a GPU
-for a few minutes (~67k passages; 1–3 hours on a CPU also works): Modal (per-second billing, $100 per person) or a Verda GPU machine; Colab or
-Kaggle as a free fallback. Time it on 20 articles first.
+for a few minutes (~67k passages): Modal (per-second billing, $100 per person) or a Verda GPU machine; Colab or
+Kaggle as a free fallback. The script exists (written for the pilot) and checks every hash
+against its input before embedding. **CPU measured: 0.7 passages/s** on A's laptop (pilot,
+median 174 words), so the full 66,642 would take roughly 12–25 hours: GPU needed.
 
 **Acceptance criteria:**
 - [ ] 20-article pilot: paragraphs per second measured, full-run time estimated.
