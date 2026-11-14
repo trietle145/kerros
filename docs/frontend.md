@@ -45,7 +45,7 @@ backend and to this file.
 | --- | --- | --- |
 | Ask + answer | `/` (B, `ask.py`) | `GET/POST /ask` (JSON, A) |
 | Article history: as of a date + timeline | `/article/<page_id>?as_of=YYYY-MM-DD` (A's route, B's template `article.html`) | template variables (below); JSON with `&format=json` |
-| Graph (add-on, later) | `/graph/<page_id>` (B adds to `ask.py`) | `GET /api/graph/<page_id>` (A, planned) |
+| Graph (add-on, later) | `/graph/<page_id>` (B adds to `ask.py`) | `GET /api/graph/<page_id>` (A, **live**) |
 
 ### 1. Ask page `/`
 
@@ -90,15 +90,15 @@ the article as of that month's end), a date picker, a version box (saved / repla
 As in `tasks/plan-graph.md` (G3/G4): force-directed graph of the article and its linked
 neighbours (real wiki links only, no vector fill-up), optional grey stub nodes for links leaving
 the dataset, a year slider (nodes and links as they were that year). Pitch line: *"explore how the
-sources connect, and how those connections grew."* Data from A's `/api/graph` (contract in
-`plan-graph.md`; A will confirm it here when built).
+sources connect, and how those connections grew."* Data from A's `/api/graph` (live, contract
+below). Good demo articles: *Mainilan laukaukset* (8295: 17 links among its nodes in 2005, 67
+today) and *Talvisota* (1256: 25 in 2004, 122 today).
 
 ## API contract (A keeps these stable)
 
 ### `GET /ask?q=<question>[&as_of=YYYY-MM-DD]` (also POST form)
 
-Live now as a **stub** (one fixed Talvisota example, real edit/revert counts); real answers when
-A's search and answers land. `400 {"error": "..."}` on an empty question; `500 {"error": "..."}`
+**Live with real answers** (hybrid search + Claude, ~3–4 s; ~8–17 s for then-vs-now questions). `400 {"error": "..."}` on an empty question; `500 {"error": "..."}`
 if the model call fails.
 
 ```json
@@ -169,9 +169,31 @@ Live. `404` if the article didn't exist on the date, `400` for a bad date.
 Live. `{"page_id": 1256, "months": [{"month": "2003-10", "edits": 2, "reverts": 0, "cleanup": 0}, …]}`
 (only months with edits; `cleanup` = reverts that undid an anonymous edit).
 
-### `GET /api/graph/<page_id>` (planned, add-on)
+### `GET /api/graph/<page_id>` (live)
 
-Shape as in `tasks/plan-graph.md` ("API contract"); A confirms it here when built.
+`404` for an unknown article; a redirect page resolves to its target. ~0.4 s the first time per
+article, then cached. Edges are real wiki links from the wikitext (no vector fill-up); vectors only
+break ties when choosing which neighbours to show.
+
+```json
+{"main": 8295,
+ "nodes": [{"id": 8295, "title": "Mainilan laukaukset", "relation": "main", "lead": "…",
+            "rev_id": 24242554, "created": 2004, "edits": 177, "reverts": 12,
+            "url": "https://fi.wikipedia.org/?oldid=24242554"},
+           {"id": 1256, "title": "Talvisota", "relation": "out", "…": "…"}],
+ "years": [2004, 2005, "…", 2026],
+ "snapshots": {"2005": {"revs": {"8295": 214942, "1256": 1324132}, "links": [[8295, 1256], "…"]},
+               "2026": {"revs": {"…": 0}, "links": [["…"]]}},
+ "outside": ["18. divisioona (jatkosota)", "Diplomatia", "Hitlerin Saksa", "…"]}
+```
+
+- `relation`: `main` | `mutual` (both link to each other) | `out` (main links to it) | `in` (it
+  links to main). Up to 20 nodes: mutual first, then out, then in.
+- `snapshots[year]`: the state at the end of that year (the current year = today). A node
+  **exists in a year** when it has an entry in `revs`; `links` are `[from, to]` among the nodes as
+  that year's text had them. Use `revs` for that year's Wikipedia link (`?oldid=<rev>`).
+- `outside`: titles the main article links to that are **not** in the dataset (up to 30), for
+  optional grey title-only stubs; no click-through.
 
 ## Tasks (B)
 
