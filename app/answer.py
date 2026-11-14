@@ -1,25 +1,68 @@
-"""The answer API (owner: A, backend). The frontend (ask.py, templates, static) calls these JSON
-routes and never touches the database. Stub until search + answers land: /ask returns one fixed
-example in the contract's shape (docs/frontend.md, "API contract").
+"""The answer API (owner: A, backend): question -> hybrid search -> the model writes a short answer
+whose every sentence cites the passages it uses. The frontend (ask.py, templates, static) calls
+these JSON routes and never touches the database. Contract: docs/frontend.md, "API contract".
+
+    python -m app.answer         # self-check: 3 questions (fi, en, sv), citations validated (~$0.1)
 """
+import re
+from urllib.parse import quote
+
 from flask import Blueprint, request
 
 from app.history import stats
+from app.llm import RefusedError, complete
+from app.search import search
 
 bp = Blueprint("answer", __name__)
 
-EXAMPLE = {"passage_id": 0, "page_id": 1256, "rev_id": 24273471, "title": "Talvisota",
-           "heading": None, "text": "Talvisota oli Neuvostoliiton ja Suomen välinen sota "
-                                    "30. marraskuuta 1939 – 13. maaliskuuta 1940.", "score": 1.0}
+SYSTEM = """You answer questions using only the numbered Wikipedia passages you are given.
+- Answer in the language of the question (Finnish, Swedish or English), even though the passages are Finnish.
+- Write 2 to 5 short sentences. Put each sentence on its own line.
+- End every sentence with the number(s) of the passage(s) it is based on, like [2] or [1][3].
+- Use only facts stated in the passages. If they do not answer the question, say so in one sentence without a number.
+- No headings, lists or text before or after the sentences."""
+CITE = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")
+
+
+def parse(text, n_sources):
+    """Model text -> [{"text", "cites"}]: one sentence per line, citation numbers taken out of the
+    text; numbers outside 1..n_sources are dropped, so every cite points at a passage that was sent."""
+    out = []
+    for line in filter(None, (l.strip().lstrip("-• ") for l in text.splitlines())):
+        cites = [int(n) for group in CITE.findall(line) for n in group.split(",")]
+        cites = list(dict.fromkeys(c for c in cites if 1 <= c <= n_sources))
+        out.append({"text": re.sub(r"\s+([.,!?])", r"\1", CITE.sub("", line)).strip(), "cites": cites})
+    return out
+
+
+def deep_url(rev_id, heading, text):
+    """The exact version, scrolled to the passage: #section anchor plus a text fragment
+    (:~:text=first 5 words,last 5 words) that browsers highlight. A browser without support, or a
+    small wording mismatch with the rendered page, falls back to the section (or the top)."""
+    enc = lambda s: quote(s, safe="").replace("-", "%2D")                    # noqa: E731
+    words = text.split()
+    frag = enc(" ".join(words[:5])) + ("," + enc(" ".join(words[-5:])) if len(words) > 10 else "")
+    anchor = quote(heading.replace(" ", "_"), safe="") if heading else ""
+    return f"https://fi.wikipedia.org/?oldid={rev_id}#{anchor}:~:text={frag}"
 
 
 def answer(question, as_of=None):
-    """question -> the /ask JSON. Stub: a fixed example until search() and complete() exist."""
-    sources = [EXAMPLE]
-    counts = stats([s["page_id"] for s in sources])
-    return {"question": question, "kind": "plain",
-            "answer": [{"text": "Talvisota käytiin vuosina 1939–1940.", "cites": [1]}],
+    """question -> the /ask JSON. A question about how Wikipedia stood on a date (or any question
+    with as_of) goes to the then-vs-now path (kind "then_vs_now"); the rest are kind "plain"."""
+    from app import timeqa
+    if r := timeqa.route(question, as_of):
+        return timeqa.answer(question, r)
+    sources = search(question, k=8)
+    if not sources:
+        return {"question": question, "kind": "plain", "sources": [],
+                "answer": [{"text": "No passages found for this question.", "cites": []}]}
+    numbered = "\n\n".join(f"[{n}] {s['title']}" + (f" / {s['heading']}" if s["heading"] else "") +
+                           f"\n{s['text']}" for n, s in enumerate(sources, 1))
+    text = complete(SYSTEM, f"Passages:\n\n{numbered}\n\nQuestion: {question}")
+    counts = stats(list({s["page_id"] for s in sources}))
+    return {"question": question, "kind": "plain", "answer": parse(text, len(sources)),
             "sources": [{"n": n, **s, "url": f"https://fi.wikipedia.org/?oldid={s['rev_id']}",
+                         "deep_url": deep_url(s["rev_id"], s["heading"], s["text"]),
                          **counts[s["page_id"]]} for n, s in enumerate(sources, 1)]}
 
 
@@ -28,4 +71,53 @@ def ask():
     question = (request.values.get("q") or "").strip()
     if not question:
         return {"error": "q is required"}, 400
-    return answer(question, request.values.get("as_of"))
+    try:
+        return answer(question, request.values.get("as_of"))
+    except RefusedError as e:
+        return {"error": str(e)}, 422
+    except Exception as e:             # model or database down: say so instead of a bare 500 page
+        return {"error": f"answering failed: {type(e).__name__}: {e}"}, 500
+
+
+TRY_PAGE = """<!doctype html><meta charset="utf-8"><title>Try /ask (backend test page)</title>
+<style>body{font:16px/1.5 system-ui;max-width:820px;margin:24px auto;padding:0 16px}
+input{width:75%;font:inherit;padding:6px}li{margin:4px 0}.u{color:#b00}small{color:#666}</style>
+<p><small>Temporary backend test page. The real UI is built on the <code>frontend</code> branch.</small></p>
+<form id=f><input id=q placeholder="Kysy Suomen historiasta… / Ask about Finnish history…" autofocus>
+<button>Ask</button></form><div id=out></div>
+<script>
+f.onsubmit = async e => { e.preventDefault(); out.innerHTML = "<p>Thinking…</p>";
+  const d = await (await fetch("/ask?q=" + encodeURIComponent(q.value))).json();
+  if (d.error) { out.innerHTML = "<p class=u>" + d.error + "</p>"; return; }
+  const esc = s => s.replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+  out.innerHTML = "<p>" + d.answer.map(s => esc(s.text) + (s.cites.length ? " <sup>[" +
+    s.cites.join("][") + "]</sup>" : " <sup class=u>[uncited]</sup>")).join(" ") + "</p><ol>" +
+    d.sources.map(s => "<li><a href='" + s.url + "'>" + esc(s.title) + "</a> / " + esc(s.heading || "Lead") +
+      " <small>(" + s.edits + " edits, " + s.reverts + " reverts, <a href='/article/" + s.page_id +
+      "'>history</a>)</small></li>").join("") + "</ol>"; };
+</script>"""
+
+
+@bp.get("/try")
+def try_page():
+    """Temporary page to try /ask in a browser until the frontend lands."""
+    return TRY_PAGE
+
+
+if __name__ == "__main__":
+    import time
+    assert parse("Talvisota alkoi 1939 [1].\nSe päättyi 1940 [2][9].\nEn tiedä.", 8) == [
+        {"text": "Talvisota alkoi 1939.", "cites": [1]}, {"text": "Se päättyi 1940.", "cites": [2]},
+        {"text": "En tiedä.", "cites": []}]
+    for q in ("Milloin talvisota alkoi ja miten se päättyi?", "Who was Urho Kekkonen?",
+              "Vad hände i Åbo år 1827?"):
+        t = time.time()
+        a = answer(q)
+        n = len(a["sources"])
+        assert a["answer"] and all(1 <= c <= n for s in a["answer"] for c in s["cites"])
+        cited = sum(bool(s["cites"]) for s in a["answer"])
+        print(f"\n{q}  ({time.time() - t:.1f} s, {cited}/{len(a['answer'])} sentences cited)")
+        for s in a["answer"]:
+            print(f"  {s['text']} {s['cites']}")
+        print("  sources:", "; ".join(f"[{s['n']}] {s['title']}" for s in a["sources"][:5]), "…")
+    print("\nok")

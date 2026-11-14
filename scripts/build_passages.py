@@ -39,10 +39,28 @@ def embedding_input(title, heading, text):
     return f"{title}\n{heading or ''}\n{text}"
 
 
-def sections(wikitext):
+def markdown_blocks(md):
+    """FineWiki Markdown (datasets S and L) -> the same (kind, text) blocks clean() gives for
+    wikitext, so the section rule is identical. The '# Title' line and table rows are dropped."""
+    out = []
+    for line in md.splitlines():
+        line = line.strip().replace("**", "")
+        if not line or line.startswith("|") or line.startswith("Pääartikkeli:"):
+            continue
+        if m := re.match(r"^(#+)\s+(.*)$", line):
+            if len(m[1]) > 1:
+                out.append((f"h{len(m[1])}", m[2].strip()))
+        elif line[:2] in ("- ", "* "):
+            out.append(("li", line[2:].strip()))
+        else:
+            out.append(("p", line))
+    return out
+
+
+def sections(text, markdown=False):
     """Yield (heading, [blocks]); heading None for the lead. Skipped sections drop their subsections."""
     heading, blocks, skip_level = None, [], None
-    for kind, text in clean(wikitext):
+    for kind, text in (markdown_blocks(text) if markdown else clean(text)):
         if kind[0] != "h":
             if not skip_level:
                 blocks.append(text)
@@ -72,9 +90,9 @@ def pieces(blocks):
     yield "\n".join(piece)
 
 
-def passages(page_id, rev_id, title, wikitext):
+def passages(page_id, rev_id, title, text, markdown=False):
     position = 0
-    for heading, blocks in sections(wikitext):
+    for heading, blocks in sections(text, markdown):
         for text in pieces(blocks):
             yield {"page_id": page_id, "rev_id": rev_id, "title": title, "position": position,
                    "heading": heading, "text": text, "text_hash": hashlib.sha256(
@@ -105,6 +123,19 @@ def build(titles, out):
           f"95% under {words[int(len(words) * .95)]}, max {words[-1]}; written to {out}")
 
 
+def build_markdown(src, out_dir):
+    """Dataset L (or S): one shard of passages per Parquet row group, so no step holds all of them."""
+    pf, start, total = pq.ParquetFile(src), time.time(), 0
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for i in range(pf.num_row_groups):
+        rows = []
+        for r in pf.read_row_group(i, columns=["page_id", "rev_id", "title", "text"]).to_pylist():
+            rows += passages(r["page_id"], r["rev_id"], r["title"], r["text"], markdown=True)
+        pq.write_table(pa.Table.from_pylist(rows, SCHEMA), out_dir / f"passages-{i}.parquet")
+        total += len(rows)
+        print(f"shard {i}: {len(rows):,} passages ({total:,} so far, {time.time() - start:.0f} s)", flush=True)
+
+
 def show(path, n):
     rows = pq.read_table(path).to_pylist()
     for r in random.sample(rows, min(n, len(rows))):
@@ -117,10 +148,13 @@ def main():
     ap.add_argument("--titles", help="comma-separated article titles (default: all)")
     ap.add_argument("--out", default=str(ROOT / "data" / "passages.parquet"))
     ap.add_argument("--show", type=int, metavar="N", help="print N random passages from --out and exit")
+    ap.add_argument("--markdown", metavar="PARQUET", help="dataset L/S Markdown -> shards in --out (a folder)")
     args = ap.parse_args()
     out = Path(args.out)
     if args.show:
         return show(out, args.show)
+    if args.markdown:
+        return build_markdown(Path(args.markdown), out)
     build(args.titles.split(",") if args.titles else None, out)
 
 

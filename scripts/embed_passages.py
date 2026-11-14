@@ -29,7 +29,7 @@ CHUNK = 256
 def main(src=None, embed_chunks=None):
     """embed_chunks: list of text chunks -> iterable of vector lists, in order (default: local CPU/GPU)."""
     src = Path(src or (sys.argv[1] if len(sys.argv) > 1 else ROOT / "data" / "passages.parquet"))
-    dst = src.with_name("passage_vectors.parquet")
+    dst = src.with_name(src.name.replace("passages", "passage_vectors"))   # passages-0 -> passage_vectors-0
     todo = {}
     for r in pq.read_table(src).to_pylist():
         todo.setdefault(r["text_hash"], embedding_input(r["title"], r["heading"], r["text"]))

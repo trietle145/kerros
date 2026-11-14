@@ -3,3 +3,4 @@ pyarrow
 flask
 sentence-transformers
 anthropic
+gunicorn
