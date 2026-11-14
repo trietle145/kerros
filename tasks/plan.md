@@ -89,7 +89,7 @@ Only the owner edits a file. Everything else is read or imported. This is what k
 | Owner | Files |
 | --- | --- |
 | **Shared** (written in 1.S, then frozen: change only after telling the other, in its own small commit) | `requirements.txt`, `app/main.py` (creates the app, registers the two blueprints, nothing else), `app/db.py` (connect + `SET mhnsw_ef_search = 80`), `app/embed.py` (`embed()` for passages *and* questions), `app/templates/base.html` |
-| **A** | `schema.sql`, `scripts/common.py`, `scripts/wikitext.py`, `scripts/build_passages.py`, `scripts/embed_passages.py`, `scripts/load_vectors.py`, `scripts/build_reverts.sql`, `app/history.py` (blueprint + `stats()`), `app/templates/article.html`, `app/static/history.*` |
+| **A** | `schema.sql`, `scripts/common.py`, `scripts/wikitext.py`, `scripts/build_passages.py`, `scripts/embed_passages.py`, `scripts/load_vectors.py`, `scripts/build_reverts.py`, `app/history.py` (blueprint + `stats()`), `app/templates/article.html`, `app/static/history.*` |
 | **B** | `app/search.py` (vector, prefix terms, RRF), `app/rerank.py`, `app/llm.py` (prompts, provider), `app/ask.py` (blueprint), `app/templates/ask.html`, `app/static/ask.*`, `eval/` |
 | Docs | A: `tasks/plan-a.md`, B: `tasks/plan-b.md` (tick your own tasks there). `tasks/plan.md` and `CLAUDE.md` are shared: change them in a small PR of their own. `.env.example`: add keys only under your own `# A` / `# B` heading. |
 

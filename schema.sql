@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS article_vector (
 );
 
 -- One row per revert: a version whose text (same sha1) already existed earlier in the article,
--- with other versions in between. Filled once after loading by scripts/build_reverts.sql.
+-- with other versions in between. Filled once after loading by scripts/build_reverts.py.
 -- Survival time of the undone text = reverted_at - undone_since.
 CREATE TABLE IF NOT EXISTS revert_event (
   page_id          INT UNSIGNED NOT NULL,

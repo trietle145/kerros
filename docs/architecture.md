@@ -129,7 +129,7 @@ flowchart LR
     P -->|distinct texts| E["bge-m3<br/>on a GPU"]
     E --> PV["passage_vector"]
     S[("Dataset S<br/>shipped vectors")] -->|load_s.py| AV["article_vector"]
-    A -->|"build_reverts.sql,<br/>once after loading"| RV["revert_event"]
+    A -->|"build_reverts.py,<br/>once after loading"| RV["revert_event"]
   end
   subgraph online["Online, per request"]
     Q["Question"] --> QE["bge-m3"]
@@ -319,7 +319,7 @@ lifetimes) next to these.
 | --- | --- |
 | `scripts/load_m.py` | Parquet → versioned `article` table (real timestamps, resumable) |
 | `scripts/load_s.py` | Shipped S vectors → `article_vector` |
-| `scripts/build_reverts.sql` | Fills `revert_event` from `article`, once after loading |
+| `scripts/build_reverts.py` | Fills `revert_event` from `article`, once after loading |
 | `scripts/build_passages.py` | Newest revision → cleaned text → one passage per section → `passages.parquet`; distinct embedding inputs to embed |
 | `scripts/embed_passages.py` | bge-m3 over the distinct texts → parquet of `text_hash, embedding`; runs wherever a GPU is |
 | `scripts/load_vectors.py` | That parquet → `passage_vector`, then builds the vector index |
