@@ -31,21 +31,25 @@ CREATE TABLE IF NOT EXISTS article (
   WITH SYSTEM VERSIONING
   PARTITION BY SYSTEM_TIME INTERVAL 1 YEAR STARTS '2002-01-01 00:00:00' AUTO PARTITIONS 26;
 
--- The current paragraphs of each Finnish article, cut from its newest version.
--- A plain table, rebuilt by build_passages.py. Paragraph history is a later feature with its
--- own table; this one does not change for it.
+-- The current passages of each Finnish article, cut from its newest version: one per section
+-- (the lead included), long sections split at paragraphs to ~300 words. A plain table, rebuilt
+-- by build_passages.py. Paragraph history is a later feature with its own table.
 CREATE TABLE IF NOT EXISTS passage (
   passage_id  INT UNSIGNED NOT NULL AUTO_INCREMENT,
   page_id     INT UNSIGNED NOT NULL,
   rev_id      INT UNSIGNED NOT NULL,          -- the revision the text came from: citations link here
+  title       VARCHAR(255) NOT NULL,          -- article title
   position    SMALLINT UNSIGNED NOT NULL,     -- order within the article, from 0
-  heading     VARCHAR(255),                   -- the section heading it sits under
+  heading     VARCHAR(255),                   -- the section heading (NULL for the lead)
   text        TEXT NOT NULL,                  -- plain text, as shown to readers
-  text_hash   BINARY(32) NOT NULL,            -- SHA-256 of text: joins to passage_vector
+  text_hash   BINARY(32) NOT NULL,            -- SHA-256 of the embedding input
+                                              -- (title \n heading \n text): joins to passage_vector
   PRIMARY KEY (passage_id),
   UNIQUE KEY (page_id, position),
   KEY (text_hash),
-  FULLTEXT (text)                             -- the keyword half of hybrid search
+  -- Keyword half of hybrid search. Queried in boolean mode with prefix terms (Kekko*), because
+  -- FULLTEXT has no Finnish stemming.
+  FULLTEXT (title, heading, text)
 ) CHARACTER SET utf8mb4;
 
 -- One vector per distinct paragraph text, not per position: the same text is embedded once,

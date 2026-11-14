@@ -39,10 +39,16 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
   is embedded (old versions must be split and embedded the same way). Start the full history
   load early; it takes all night. Everything else can be rebuilt from the Parquet files.
 - History: all of dataset M in one system-versioned `article` table with real timestamps.
-- Search: paragraphs from M's newest version per article, cleaned to plain text. One paragraph
-  per passage, short ones merged up to ~300 words, title + section heading prefixed before
-  embedding. One bge-m3 vector each. Where embedding runs is set per machine (`.env`); the rule
-  is the same model and settings for paragraphs and questions.
+- Search (decided 2026-11-14, details in docs/architecture.md "Chunking, embedding and keyword
+  search"): passages from M's newest version per article, cleaned to plain text. **One passage
+  per section** (lead included); sections over ~300 words split at paragraphs; no merging across
+  sections, no overlap; reference/link sections skipped. ~67k passages, median ~80 words.
+  Embedding input `title \n heading \n text`, bge-m3 dense, max 1,024 tokens; `text_hash` =
+  SHA-256 of that input. Same model and settings for passages and questions.
+- Hybrid retrieval with RRF (k = 60, top 50 per side), `UNION ALL` + `GROUP BY` (no FULL OUTER
+  JOIN in MariaDB). Keyword half = `FULLTEXT(title, heading, text)` in boolean mode with **prefix
+  terms** built in Python, because FULLTEXT has no Finnish stemming: words of 6+ letters drop
+  their last 3 letters (min 4) and get `*` (Kekkonen → `Kekko*`); numbers and short words exact.
 - Keep the shipped S article vectors for whole-article search and the sv/en articles.
 - **Vector index setting (fixed, recommended by MariaDB):** `VECTOR INDEX (embedding) M=16
   DISTANCE=cosine` on every vector table, and `SET mhnsw_ef_search = 80` on every connection that

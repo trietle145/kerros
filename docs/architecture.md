@@ -44,13 +44,80 @@ Two things to keep in mind:
 | | How it finds paragraphs | Good at | Weak at |
 | --- | --- | --- | --- |
 | A. Vector only | Nearest paragraph vectors to the question vector | Meaning, cross-language | Exact names, years, rare words |
-| **B. Hybrid (chosen)** | Paragraph vectors and MariaDB `FULLTEXT` in one SQL statement, merged by rank (reciprocal rank fusion) | Meaning *and* exact names and years, e.g. "president 1956–1982" | Finnish word endings may weaken the keyword half (to test) |
+| **B. Hybrid (chosen)** | Paragraph vectors and MariaDB `FULLTEXT` in one SQL statement, merged by rank (reciprocal rank fusion) | Meaning *and* exact names and years, e.g. "president 1956–1982" | Finnish word endings: handled by prefix search (below) |
 | C. Two-stage | Shipped article vectors pick the top articles, then paragraph vectors within them | Cheap, uses the S vectors | Misses facts in articles the first stage skipped |
 
 **Decision: B, built as A first.** B is A plus one more query, so A works on day one and B
 follows. B is also a strong "MariaDB feature used well" point, and MariaDB documents the pattern:
 [Optimizing Hybrid Search Query with Reciprocal Rank Fusion](https://mariadb.com/docs/server/reference/sql-structure/vectors/optimizing-hybrid-search-query-with-reciprocal-rank-fusion-rrf).
 C stays useful later for cross-language features.
+
+## Chunking, embedding and keyword search
+
+Decided 2026-11-14 after looking at other Wikipedia RAG systems and measuring our own articles.
+
+**What others do.** DPR and the original RAG paper cut Wikipedia into disjoint 100-word blocks,
+each carrying its article title (21M passages); a later study found the fixed cut breaks
+sentences. Cohere's multilingual Wikipedia set is paragraph-level (2.4M Finnish passages). The
+MariaDB RAG starter embeds whole articles (76% top-5) and lists chunks and hybrid + RRF as its own
+next steps. Anthropic's contextual retrieval puts context in front of each chunk and adds BM25:
+top-20 failure rate 5.7% → 3.7% (context) → 2.9% (+ keyword search) → 1.9% (+ reranking).
+
+**Our articles** (newest versions, crude cleaning, measured 2026-11-14): 19,600 articles (142
+redirects skipped), 6.8 million words. Median article 180 words, 69% under 300 words. Raw
+paragraphs are small (median 39 words, half under 40). Sections are a natural size (median 77
+words, 95% under 300).
+
+**Chunking: one passage per section.**
+- The lead (text before the first heading) is its own passage; each section is one passage.
+- A section over ~300 words is split at paragraph boundaries into pieces of up to ~300 words.
+- Never merge across sections; no overlap.
+- Skip reference and link sections: Lähteet, Viitteet, Aiheesta muualla, Katso myös,
+  Kirjallisuutta (and the same in sv/en if those articles are added).
+- Expected: about 67,000 passages, median ~80 words, 95% under ~265 words.
+- Why sections, not fixed windows: an edit changes only its own section's passage, so passage
+  boundaries stay stable across versions. The time features (paragraph lifetimes, "ask the past")
+  depend on that; fixed windows would shift with every edit.
+
+**Embedding.**
+- bge-m3 dense, 1024 dimensions, normalised, cosine; the same model as the shipped S vectors and
+  the starter's measurements.
+- Passage input: `title + "\n" + heading + "\n" + text`. Question input: the question as typed.
+  Max length 1,024 tokens (a 300-word Finnish passage is roughly 600 tokens).
+- `text_hash` = SHA-256 of that exact embedding input, so one hash means one vector, and an
+  unchanged section in an old version reuses its vector.
+- ~67k passages: minutes on a GPU, roughly 1–3 hours on a CPU.
+
+**Keyword half: prefix search for Finnish.** MariaDB `FULLTEXT` matches whole words and has no
+Finnish stemming. Measured on 12.3: `MATCH … AGAINST('Kekkonen')` finds only "Kekkonen";
+`AGAINST('Kekko*' IN BOOLEAN MODE)` also finds "Kekkosen" and "Kekkoselle"; years and hyphenated
+names ("YYA-sopimus") match exactly. So Python turns the question into boolean prefix terms:
+- words of 6+ letters keep all but their last 3 letters (at least 4) and get `*`:
+  Kekkonen → `Kekko*`, talvisota → `talvis*`, presidentti → `presiden*`;
+- numbers and shorter words stay exact; a few question words (mikä, milloin, kuka…) are dropped;
+- the index covers `FULLTEXT(title, heading, text)`, so a question naming an article finds its
+  passages.
+Known cost: short stems over-match (`Turk*` → Turku and Turkki); the vector half outvotes them in
+the fusion. Tune the rule against the evaluation.
+
+**Fusion: reciprocal rank fusion in one SQL statement.** Top 50 from the vector side and top 50
+from the keyword side; each passage scores `1/(60 + rank)` per side it appears in; sum, order,
+keep the top. MariaDB 12.3 has no `FULL OUTER JOIN` (tested), so the two lists are combined with
+`UNION ALL` + `GROUP BY passage_id` (MariaDB's RRF guide uses `LEFT JOIN … UNION`). English and
+Swedish questions get little from the keyword half; RRF then follows the vector order.
+
+**Not now.** LLM-written context per chunk (title + heading give most of it), late chunking
+(sections are already self-contained), bge-m3 sparse vectors (no MariaDB index; `FULLTEXT`
+plays that role), a reranker (measure later: top 50 → rerank → top 8–12; adds CPU latency).
+
+Sources: [wiki_dpr](https://huggingface.co/datasets/wiki_dpr/blob/main/README.md) ·
+[DPR pre-processing study](https://manveertamber.github.io/assets/pdf/pre-processing.pdf) ·
+[Cohere Wikipedia embeddings](https://huggingface.co/datasets/Cohere/wikipedia-2023-11-embed-multilingual-v3) ·
+[MariaDB RAG starter](https://github.com/MariaDB/mariadb-vector-wikipedia-rag) ·
+[MariaDB RRF guide](https://mariadb.com/docs/server/reference/sql-structure/vectors/optimizing-hybrid-search-query-with-reciprocal-rank-fusion-rrf) ·
+[Contextual retrieval](https://www.anthropic.com/engineering/contextual-retrieval) ·
+[Late chunking](https://arxiv.org/html/2409.04701v3) ·
+[BGE-M3](https://arxiv.org/abs/2402.03216)
 
 ## System overview
 
@@ -106,10 +173,11 @@ erDiagram
     int passage_id PK
     int page_id
     int rev_id "citation target"
+    varchar title "FULLTEXT with heading, text"
     smallint position
     varchar heading
-    text text "FULLTEXT"
-    binary text_hash
+    text text
+    binary text_hash "SHA-256 of the embedding input"
   }
   passage_vector {
     binary text_hash PK
@@ -252,7 +320,7 @@ lifetimes) next to these.
 | `scripts/load_m.py` | Parquet → versioned `article` table (real timestamps, resumable) |
 | `scripts/load_s.py` | Shipped S vectors → `article_vector` |
 | `scripts/build_reverts.sql` | Fills `revert_event` from `article`, once after loading |
-| `scripts/build_passages.py` | Newest revision → cleaned paragraphs → `passage`; writes the distinct texts to embed |
+| `scripts/build_passages.py` | Newest revision → cleaned text → one passage per section → `passages.parquet`; distinct embedding inputs to embed |
 | `scripts/embed_passages.py` | bge-m3 over the distinct texts → parquet of `text_hash, embedding`; runs wherever a GPU is |
 | `scripts/load_vectors.py` | That parquet → `passage_vector`, then builds the vector index |
 | `app/db.py` | Connection and the retrieval queries |
@@ -288,17 +356,19 @@ paragraphs and questions are embedded with the same model and settings.
   test paragraphs.
 - Five questions embedded on the GPU machine and on the query machine give the same vectors
   (cosine similarity above 0.99).
-- The starter's wikitext cleaner gives readable paragraphs on 3 hero articles.
-- Finnish `FULLTEXT`: does a search for "Kekkonen" find "Kekkosen"? If not, the vector half
-  carries word endings and the keyword half carries exact names and years.
+- The starter's wikitext cleaner gives readable passages on 3 hero articles.
+- Finnish `FULLTEXT`: done. Exact search misses other word forms; boolean prefix search
+  (`Kekko*`) finds them. See "Chunking, embedding and keyword search".
 
 ## Settings decided for now
 
-- Paragraph = one paragraph, short ones merged up to ~300 words; the title and section heading are
-  prepended only when embedding, not in the stored text.
-- `SET mhnsw_ef_search = 80`; re-measure recall once all paragraph vectors are in.
+- Passage = one section (lead included), long sections split at paragraphs to ~300 words; the
+  title and heading are prepended only when embedding, not in the stored text. Details in
+  "Chunking, embedding and keyword search".
+- `M=16`, `SET mhnsw_ef_search = 80`; re-measure recall once all passage vectors are in.
 - Vector search goes in a subquery and is joined afterwards, so the index is used.
-- Top 8 paragraphs, at most 2 per article, go to the model.
+- Hybrid: top 50 per side, RRF with k = 60.
+- Top 8 passages, at most 2 per article, go to the model.
 - The answer is in the question's language; the sources stay in their own language.
 
 ## What adding a feature later costs
@@ -346,9 +416,7 @@ when `passage_history` and "ask the past" are built.
 ## Open
 
 - Which cloud model, and which credits pay for it.
-- How well `FULLTEXT` handles Finnish word endings, and whether the starter's wikitext cleaner is
-  good enough for paragraphs.
+- Whether the starter's wikitext cleaner is good enough for passages.
+- The prefix rule (cut 3 letters, minimum 4) and the question-word list: tune on the evaluation.
+- Whether a reranker earns its latency.
 - Which time feature is the highlight (the feature pool in `tasks/plan.md`).
-- The vector is keyed by the hash of the paragraph text, but the text embedded also has the
-  title and heading in front. The same text under another heading reuses the first vector. Accept
-  this for now; it mostly affects boilerplate paragraphs. Revisit if search results look wrong.
