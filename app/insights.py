@@ -301,6 +301,24 @@ def ref_label(body):
     return re.sub(r"\s+", " ", text).strip()[:160]
 
 
+# A sentence ends at . ! ? after a letter or a 4-digit year (never after the "30." of "30. marraskuuta"),
+# together with the <ref>s that follow it: in wikitext the reference comes after the full stop.
+WIKI_END = re.compile(r"(?:(?<=[^\W\d])|(?<=\d{4}))[.!?](?:\s*<ref[^>]*?/>|\s*<ref[^>]*>.*?</ref>)*(?=\s|$)", re.S)
+
+
+def wiki_sentences(body):
+    out, start = [], 0
+    for m in WIKI_END.finditer(body):
+        out.append(body[start:m.end()])
+        start = m.end()
+    return [s for s in out + [body[start:]] if s.strip()]
+
+
+def plain_sentences(text):
+    from app.translate import SPLIT
+    return [s for line in text.splitlines() for s in SPLIT.split(line) if s.strip()]
+
+
 def refs_near(wikitext, heading, sentence):
     """The <ref>s attached to the wikitext sentences of that section that best match `sentence`."""
     named = {m[0].strip(): m[1] for m in REF.findall(wikitext) if m[0] and m[1]}
@@ -314,14 +332,15 @@ def refs_near(wikitext, heading, sentence):
         body = wikitext[:m.start()]
     keys = set(_stems(sentence))
     scored = []
-    for part in re.split(r"(?<=[.!?])(?=\s|<ref)", body):
+    for part in wiki_sentences(body):
         found = REF.findall(part)
         if found:
             score = len(keys & set(_stems(re.sub(r"<ref.*?(?:/>|</ref>)", "", part, flags=re.S))))
             scored.append((score, found))
+    best = max(scored, key=lambda x: x[0], default=(0, []))
     out = []
-    for score, found in sorted(scored, key=lambda x: -x[0])[:2]:
-        for name, inner in found:
+    if best[0] >= 2:                                    # only the refs of the one sentence that says it
+        for name, inner in best[1]:
             inner = inner or named.get((name or "").strip(), "")
             if inner:
                 markup = f'<ref name="{name.strip()}">{inner}</ref>' if name else f"<ref>{inner}</ref>"
@@ -335,27 +354,17 @@ def _stems(text):
 
 
 def cite(text, k=6):
-    """Passages that back a sentence (FULLTEXT over today's paragraphs, Finnish prefix terms),
-    each with the references its article gives for the best-matching part.
-    shortcut: keyword search only (no model on the laptop); upgrade to search() where bge-m3 runs."""
-    from app.search import fulltext_terms
-    terms = fulltext_terms(text)
-    if not terms:
-        return []
-    rows = _rows("""SELECT passage_id, page_id, rev_id, title, heading, text,
-                           MATCH (title, heading, text) AGAINST (? IN BOOLEAN MODE) AS s
-                    FROM passage WHERE MATCH (title, heading, text) AGAINST (? IN BOOLEAN MODE)
-                    ORDER BY s DESC LIMIT 30""", (terms, terms))
+    """Passages that back a sentence, by the app's hybrid search (meaning + names and years, the
+    same as the answers), one per article, each with the references its article gives for the
+    sentence that says it. Needs the embedding model (the server; a laptop forwards /api/cite)."""
+    from app.search import search
     keys = set(_stems(text))
-    rows.sort(key=lambda r: (-len(keys & set(_stems(r[5]))), -r[6]))
-    out, pages = [], set()
-    for pid, page_id, rev, title, heading, ptext, s in rows:
-        if page_id in pages:
-            continue
-        pages.add(page_id)
+    out = []
+    for h in search(text, k=12, per_article=1):
+        pid, page_id, rev, title, heading, ptext = (h["passage_id"], h["page_id"], h["rev_id"], h["title"],
+                                                    h["heading"], h["text"])
         wt = _rows("SELECT text FROM article WHERE page_id = ?", (page_id,))
-        sents = re.split(r"(?<=[.!?])\s+", ptext)
-        best = max(sents, key=lambda x: len(keys & set(_stems(x))))
+        best = max(plain_sentences(ptext) or [ptext], key=lambda x: len(keys & set(_stems(x))))
         out.append({"passage_id": pid, "page_id": page_id, "title": title, "heading": heading, "sentence": best,
                     "overlap": len(keys & set(_stems(best))), "url": f"https://fi.wikipedia.org/?oldid={rev}",
                     "refs": refs_near(wt[0][0], heading, best) if wt else []})
@@ -486,6 +495,11 @@ if __name__ == "__main__":
     assert disagreements("105 päivää", "3 kertaa") == []
     assert ref_label("{{Kirjaviite | Tekijä = Meinander, Henrik | Nimi = Suomen historia | Vuosi = 2006 }}") == \
         "Meinander, Henrik: Suomen historia (2006)"
+    wt = 'Sota alkoi 30. marraskuuta 1939.<ref name="a">Kirja 1999</ref> Se päättyi keväällä.<ref>Toinen</ref> Loppu'
+    assert wiki_sentences(wt) == ['Sota alkoi 30. marraskuuta 1939.<ref name="a">Kirja 1999</ref>',
+                                  ' Se päättyi keväällä.<ref>Toinen</ref>', ' Loppu'], wiki_sentences(wt)
+    assert [r["label"] for r in refs_near(wt, None, "Sota alkoi marraskuussa 1939")] == ["Kirja 1999"]
+    assert plain_sentences("Sota alkoi 30. marraskuuta 1939. Se päättyi.") == ["Sota alkoi 30. marraskuuta 1939.", "Se päättyi."]
     print("rules ok")
     pid = _rows("SELECT passage_id FROM passage WHERE page_id = 1256 ORDER BY position LIMIT 1 OFFSET 1")[0][0]
     for name, fn in (("health", lambda: health([pid])), ("rewind", lambda: rewind_one(pid)),
