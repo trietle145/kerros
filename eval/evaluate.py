@@ -24,8 +24,9 @@ ARTICLE_SQL = """SELECT v.page_id FROM (SELECT page_id, VEC_DISTANCE_COSINE(embe
                  FROM article_vector WHERE lang = 'fi' ORDER BY d LIMIT 30) v ORDER BY v.d LIMIT 10"""
 
 
-def passages(lists):
-    return lambda vector, question: [r["page_id"] for r in rank(vector, question, 10, 1, lists)]
+def passages(lists, names_only=True):
+    return lambda vector, question: [r["page_id"] for r in rank(vector, question, 10, 1, lists,
+                                                                names_only)]
 
 
 def whole_articles(vector, question):
@@ -61,8 +62,10 @@ def main():
     print(f"{len(questions)} questions ({len(missing)} expected articles not in M: {missing}); "
           f"embedding {(time.perf_counter() - t) * 1000 / len(questions):.0f} ms per question")
     modes = (("whole articles (S vectors)", whole_articles),
-             ("vec", passages(("vec",))), ("vec + ft", passages(("vec", "ft"))),
-             ("vec + art", passages(("vec", "art"))), ("passages (ours)", passages(("vec", "ft", "art"))))
+             ("vec", passages(("vec",))), ("vec + ft (all words)", passages(("vec", "ft"), False)),
+             ("vec + ft (names)", passages(("vec", "ft"))), ("vec + art", passages(("vec", "art"))),
+             ("all, ft all words", passages(("vec", "ft", "art"), False)),
+             ("passages (ours)", passages(("vec", "ft", "art"))))
     for name, fn in modes:
         ranks, ms = [], []
         for q, v in zip(questions, vectors):

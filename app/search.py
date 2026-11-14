@@ -38,22 +38,28 @@ LISTS = {
 }
 
 
-def fulltext_terms(question):
+def fulltext_terms(question, names_only=False):
     """Boolean-mode terms: words of 6+ letters keep all but their last 3 letters (at least 4) and
     get `*` (Kekkonen -> kekko*), because FULLTEXT has no Finnish stemming; numbers and shorter
-    words stay exact; question words are dropped. ponytail: crude stemmer, tune on the eval."""
+    words stay exact; question words are dropped. names_only: keep only numbers and capitalised
+    words after the first (names, places, years), the job the keyword half is for.
+    ponytail: crude stemmer, tune on the eval."""
     terms = []
-    for w in re.findall(r"\w+", question.lower()):
+    words = re.findall(r"\w+", question)
+    for i, w in enumerate(words):
+        if names_only and not (w.isdigit() or (i > 0 and w[:1].isupper())):
+            continue
+        w = w.lower()
         if w in STOP or len(w) < 3:
             continue
         terms.append(w if w.isdigit() or len(w) < 6 else w[:max(4, len(w) - 3)] + "*")
     return " ".join(dict.fromkeys(terms))
 
 
-def rank(vector, question="", k=8, per_article=2, lists=("vec", "ft", "art")):
+def rank(vector, question="", k=8, per_article=2, lists=("vec", "ft", "art"), names_only=True):
     """Top k passages, at most per_article from one article (None = no cap).
     ponytail: per_article=2 is a starting value, not measured; the eval decides."""
-    terms = fulltext_terms(question) if "ft" in lists else ""
+    terms = fulltext_terms(question, names_only) if "ft" in lists else ""
     parts, params = [], []
     for name in lists:
         if name == "ft" and not terms:
@@ -91,4 +97,6 @@ if __name__ == "__main__":
     assert fulltext_terms("talvisota 1939–1940") == "talvis* 1939 1940"
     assert fulltext_terms("YYA-sopimus") == "yya sopi*"
     assert fulltext_terms("Who was it?") == "was"
+    assert fulltext_terms("Milloin Kekkonen oli presidentti vuonna 1956?", names_only=True) == "kekko* 1956"
+    assert fulltext_terms("Which peace treaty ended the Winter War?", names_only=True) == "wint* war"
     print("ok")
