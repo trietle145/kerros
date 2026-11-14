@@ -63,6 +63,31 @@ def ask():
         return {"error": f"answering failed: {type(e).__name__}: {e}"}, 500
 
 
+TRY_PAGE = """<!doctype html><meta charset="utf-8"><title>Try /ask (backend test page)</title>
+<style>body{font:16px/1.5 system-ui;max-width:820px;margin:24px auto;padding:0 16px}
+input{width:75%;font:inherit;padding:6px}li{margin:4px 0}.u{color:#b00}small{color:#666}</style>
+<p><small>Temporary backend test page. The real UI is built on the <code>frontend</code> branch.</small></p>
+<form id=f><input id=q placeholder="Kysy Suomen historiasta… / Ask about Finnish history…" autofocus>
+<button>Ask</button></form><div id=out></div>
+<script>
+f.onsubmit = async e => { e.preventDefault(); out.innerHTML = "<p>Thinking…</p>";
+  const d = await (await fetch("/ask?q=" + encodeURIComponent(q.value))).json();
+  if (d.error) { out.innerHTML = "<p class=u>" + d.error + "</p>"; return; }
+  const esc = s => s.replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+  out.innerHTML = "<p>" + d.answer.map(s => esc(s.text) + (s.cites.length ? " <sup>[" +
+    s.cites.join("][") + "]</sup>" : " <sup class=u>[uncited]</sup>")).join(" ") + "</p><ol>" +
+    d.sources.map(s => "<li><a href='" + s.url + "'>" + esc(s.title) + "</a> / " + esc(s.heading || "Lead") +
+      " <small>(" + s.edits + " edits, " + s.reverts + " reverts, <a href='/article/" + s.page_id +
+      "'>history</a>)</small></li>").join("") + "</ol>"; };
+</script>"""
+
+
+@bp.get("/try")
+def try_page():
+    """Temporary page to try /ask in a browser until the frontend lands."""
+    return TRY_PAGE
+
+
 if __name__ == "__main__":
     import time
     assert parse("Talvisota alkoi 1939 [1].\nSe päättyi 1940 [2][9].\nEn tiedä.", 8) == [
