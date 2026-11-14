@@ -70,3 +70,4 @@
 .xl-pair p { margin: 0; }
 .xl-d { font-family: var(--font-mono); font-weight: 400; }
 @media (max-width: 640px) { .xl-pair { grid-template-columns: 1fr; } .xl-dots { display: none; } }
+.xl-key { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; margin: -.75rem 0 1.5rem; color: var(--muted); font-size: .8125rem; }

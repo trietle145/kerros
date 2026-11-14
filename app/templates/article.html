@@ -13,6 +13,7 @@
     {{ "{:,}".format(reverts) }} reverts
     ({{ "{:,}".format(cleanup) }} undid anonymous edits, {{ "{:,}".format(reverts - cleanup) }} undid named editors) ·
     <a href="https://fi.wikipedia.org/?curid={{ page_id }}">today on Wikipedia</a>
+    {% if other_langs %}· <a href="/compare/{{ page_id }}">compare with {{ other_langs | map("replace", "en", "English") | map("replace", "sv", "Swedish") | join(" and ") }}</a>{% endif %}
   </p>
 </header>
 
@@ -39,45 +40,6 @@
     <span class="muted">bar height ∝ √count · click a month to read the article as it was then</span>
   </figcaption>
 </figure>
-
-{% set LBL = {"covered": "✓ In Finnish", "partly": "◐ Partly", "elsewhere": "→ Own Finnish article",
-                "lost": "↩ Was in Finnish", "missing": "✗ Not in Finnish"} %}
-{% set SHORT = {"covered": "in Finnish", "partly": "partly", "elsewhere": "own Finnish article",
-                  "lost": "was in Finnish", "missing": "not in Finnish"} %}
-{% macro why(i) -%}
-  {%- if i.label == "covered" -%}in Finnish{% if i.since %} since {{ i.since[:4] }}{% endif %}
-  {%- elif i.label == "elsewhere" -%}Finnish covers this in <a href="/article/{{ i.other.page_id }}" lang="fi">{{ i.other.title }}</a>
-  {%- elif i.label == "lost" -%}was in this article {{ i.lost_from[:4] }}–{{ i.lost_until[:4] }}{% if i.other %}, now in <a href="/article/{{ i.other.page_id }}" lang="fi">{{ i.other.title }}</a>{% else %}, no Finnish match today{% endif %}
-  {%- elif i.label == "partly" -%}Finnish touches this, with less detail
-  {%- else -%}no Finnish paragraph says this{%- endif -%}
-{%- endmacro %}
-{# folded, and only for today's article: the labels compare with today's Finnish text, and an
-   old date is about the version box and its diff link below #}
-{% for lang, L in xlang.items() if not request.args.get('as_of') %}
-<details class="xl">
-  <summary class="xl-head">
-    <h2>Compared with {{ "English" if lang == "en" else "Swedish" }} <a href="{{ L.url }}" lang="{{ lang }}">{{ L.title }}</a></h2>
-    <span class="xl-counts">{% for k in ["covered", "partly", "elsewhere", "lost", "missing"] if L.counts[k] %}<span class="st st-{{ k }}">{{ L.counts[k] }} {{ SHORT[k] }}</span>{% endfor %}</span>
-  </summary>
-  <div class="xl-meter" role="img" aria-label="{{ L.total }} {{ lang }} paragraphs compared with Finnish">
-    {% for k in ["covered", "partly", "elsewhere", "lost", "missing"] if L.counts[k] %}<i class="m-{{ k }}" style="flex: {{ L.counts[k] }}"></i>{% endfor %}
-  </div>
-  {% for sec in L.sections %}
-  <details class="xl-row">
-    <summary><span class="xl-sec"><b lang="{{ lang }}">{{ sec.heading or "Lead" }}</b><span>{{ why(sec.first) }}</span></span>
-      <span class="xl-dots" aria-hidden="true">{% for i in sec["items"] %}<i class="m-{{ i.label }}"></i>{% endfor %}</span>
-      <span class="st st-{{ sec.first.label }}">{{ LBL[sec.first.label] }}</span></summary>
-    {% for i in sec["items"] %}
-    <div class="xl-pair">
-      <div><h4><span class="st st-{{ i.label }}">{{ LBL[i.label] }}</span> <a href="{{ i.url }}">{{ "English" if lang == "en" else "Swedish" }} ↗</a></h4><p lang="{{ lang }}">{{ i.text | truncate(420) }}</p></div>
-      <div><h4>Closest Finnish · {{ (i.closest_fi.heading or "Lead") if i.closest_fi else "none" }} <span class="xl-d">distance {{ i.distance }}</span></h4>
-        <p lang="fi">{{ (i.closest_fi.text | truncate(420)) if i.closest_fi else "" }}</p></div>
-    </div>
-    {% endfor %}
-  </details>
-  {% endfor %}
-</details>
-{% endfor %}
 
 <form class="asof" method="get">
   <label>Read the article as of

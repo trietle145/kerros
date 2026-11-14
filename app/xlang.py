@@ -1,6 +1,7 @@
 """Cross-language gaps (owner: A, backend): what English and Swedish Wikipedia say that the Finnish
 article does not. scripts/build_xlang.py labels every en/sv paragraph once; this module reads them.
 
+    /compare/<page_id>          page: the same, section by section, next to the closest Finnish text
     GET /api/xlang/<page_id>    the en/sv paragraphs of one Finnish article, labelled, in article order
     adds(vector, ...)           for /ask: up to 3 en/sv paragraphs that answer the question and Finnish lacks
     langs(page_ids)             for /ask: which Finnish articles have an English / Swedish counterpart
@@ -11,7 +12,7 @@ from contextlib import closing
 from urllib.parse import quote
 
 import mariadb
-from flask import Blueprint
+from flask import Blueprint, render_template
 
 from app.db import connect
 
@@ -90,6 +91,32 @@ def coverage(page_id):
             "other": {"page_id": other, "title": otitle} if other else None,
             "closest_fi": {"heading": fh, "text": ft} if ft else None})
     return out
+
+
+def sections(page_id):
+    """The other-Wikipedias panel: per language, runs of paragraphs under one heading, each section
+    shown with its most notable label (a gap outranks a match)."""
+    order = ("missing", "lost", "elsewhere", "partly", "covered")
+    out = {}
+    for lang, L in coverage(page_id).items():
+        secs = []
+        for it in L["items"]:
+            if not secs or secs[-1]["heading"] != it["heading"]:
+                secs.append({"heading": it["heading"], "items": []})
+            secs[-1]["items"].append(it)
+        for sec in secs:
+            sec["first"] = next(i for l in order for i in sec["items"] if i["label"] == l)
+        out[lang] = {**L, "sections": secs, "total": len(L["items"])}
+    return out
+
+
+@bp.get("/compare/<int:page_id>")
+def page(page_id):
+    langs_ = sections(page_id)
+    title = _rows("SELECT title FROM passage WHERE page_id = ? AND position = 0", (page_id,))
+    if not langs_ or not title:
+        return render_template("article.html", error=f"No English or Swedish article to compare with for {page_id}."), 404
+    return render_template("compare.html", page_id=page_id, title=title[0][0], xlang=langs_)
 
 
 @bp.get("/api/xlang/<int:page_id>")

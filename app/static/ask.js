@@ -118,7 +118,8 @@ function render(res, q, animate) {
       <div class="src-actions">
         <a class="btn btn-quiet" href="${safeUrl(s.deep_url || s.url)}" target="_blank" rel="noopener" title="The exact version this text came from, scrolled to this passage">Open on Wikipedia ↗</a>
         <a class="btn btn-quiet" href="${history}" data-go="${key}">History</a>
-        <a class="btn btn-quiet" href="${graphUrl(s.page_id, q)}" data-go="${key}">Graph</a>
+        <a class="btn btn-quiet" href="${graphUrl(s.page_id, q)}" data-go="${key}">Graph</a>${s.langs?.length ? `
+        <a class="btn btn-quiet" href="/compare/${s.page_id}" title="What English and Swedish Wikipedia say that this Finnish article does not">Compare ${s.langs.map(l => l === "sv" ? "SV" : "EN").join("/")}</a>` : ""}
       </div></article>`;
   };
   const group = (label, list, from) => !list.length ? "" :
