@@ -17,6 +17,7 @@ import sys
 import time
 from pathlib import Path
 
+import mariadb
 import pyarrow.parquet as pq
 
 from common import ROOT, connect
@@ -64,9 +65,17 @@ def stream_vectors(cur, con, path, table, cols="text_hash, embedding"):
         emb = batch.column("embedding").values.to_numpy().astype("<f4").reshape(-1, 1024)
         rows = zip(*[batch.column(c).to_pylist() for c in names if c != "embedding"],
                    (e.tobytes() for e in emb))
-        cur.executemany(f"INSERT IGNORE INTO {table} ({cols}) VALUES ({','.join('?' * len(names))})",
-                        list(rows))
-        con.commit()
+        rows = list(rows)
+        for attempt in range(10):     # parallel loaders deadlock on the vector index now and then
+            try:
+                cur.executemany(f"INSERT IGNORE INTO {table} ({cols}) "
+                                f"VALUES ({','.join('?' * len(names))})", rows)
+                con.commit()
+                break
+            except mariadb.OperationalError as e:
+                con.rollback()
+                if "Deadlock" not in str(e) or attempt == 9:
+                    raise
         done += len(emb)
         if done % 20_000 < BATCH:
             secs = time.time() - start

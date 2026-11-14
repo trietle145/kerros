@@ -13,6 +13,7 @@
     {{ "{:,}".format(reverts) }} reverts
     ({{ "{:,}".format(cleanup) }} undid anonymous edits, {{ "{:,}".format(reverts - cleanup) }} undid named editors) ·
     <a href="https://fi.wikipedia.org/?curid={{ page_id }}">today on Wikipedia</a>
+    {% if other_langs %}· <a href="/compare/{{ page_id }}">compare with {{ other_langs | map("replace", "en", "English") | map("replace", "sv", "Swedish") | join(" and ") }}</a>{% endif %}
   </p>
 </header>
 

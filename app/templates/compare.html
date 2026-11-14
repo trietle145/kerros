@@ -1,0 +1,55 @@
+{# Compared with English / Swedish (backend A: app/xlang.py). Reached from a source card's
+   "Compare EN/SV" button and from the article page. Does not depend on a date: it compares the
+   en/sv articles of dataset S with today's Finnish article. #}
+{% extends "base.html" %}
+{% block title %}{{ title }} · compared with English and Swedish{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='history.css') }}">{% endblock %}
+{% block content %}
+<header class="hist-head">
+  <p class="kicker">Compared with other Wikipedias</p>
+  <h1 lang="fi">{{ title }}</h1>
+  <p class="totals">What English and Swedish Wikipedia say that this Finnish article does not, section by section ·
+    <a href="/article/{{ page_id }}">edit history</a> · <a href="https://fi.wikipedia.org/?curid={{ page_id }}">today on Wikipedia</a></p>
+  <p class="xl-key"><span class="st st-covered">✓ In Finnish</span> close Finnish paragraph today ·
+    <span class="st st-partly">◐ Partly</span> Finnish mentions it, with less detail ·
+    <span class="st st-elsewhere">→ In another Finnish article</span> Finnish has a separate article on it ·
+    <span class="st st-lost">↩ Was in Finnish</span> it was here once, then left ·
+    <span class="st st-missing">✗ Not in Finnish</span> no Finnish paragraph says this</p>
+</header>
+{% set LBL = {"covered": "✓ In Finnish", "partly": "◐ Partly", "elsewhere": "→ In another Finnish article",
+                "lost": "↩ Was in Finnish", "missing": "✗ Not in Finnish"} %}
+{% set SHORT = {"covered": "in Finnish", "partly": "partly", "elsewhere": "in another Finnish article",
+                  "lost": "was in Finnish", "missing": "not in Finnish"} %}
+{% macro why(i) -%}
+  {%- if i.label == "covered" -%}in Finnish{% if i.since %} since {{ i.since[:4] }}{% endif %}
+  {%- elif i.label == "elsewhere" -%}Finnish covers this in <a href="/article/{{ i.other.page_id }}" lang="fi">{{ i.other.title }}</a>
+  {%- elif i.label == "lost" -%}was in this article {{ i.lost_from[:4] }}–{{ i.lost_until[:4] }}{% if i.other %}, now in <a href="/article/{{ i.other.page_id }}" lang="fi">{{ i.other.title }}</a>{% else %}, no Finnish match today{% endif %}
+  {%- elif i.label == "partly" -%}Finnish touches this, with less detail
+  {%- else -%}no Finnish paragraph says this{%- endif -%}
+{%- endmacro %}
+{% for lang, L in xlang.items() %}
+<details class="xl" open>
+  <summary class="xl-head">
+    <h2>Compared with {{ "English" if lang == "en" else "Swedish" }} <a href="{{ L.url }}" lang="{{ lang }}">{{ L.title }}</a></h2>
+    <span class="xl-counts">{% for k in ["covered", "partly", "elsewhere", "lost", "missing"] if L.counts[k] %}<span class="st st-{{ k }}">{{ L.counts[k] }} {{ SHORT[k] }}</span>{% endfor %}</span>
+  </summary>
+  <div class="xl-meter" role="img" aria-label="{{ L.total }} {{ lang }} paragraphs compared with Finnish">
+    {% for k in ["covered", "partly", "elsewhere", "lost", "missing"] if L.counts[k] %}<i class="m-{{ k }}" style="flex: {{ L.counts[k] }}"></i>{% endfor %}
+  </div>
+  {% for sec in L.sections %}
+  <details class="xl-row">
+    <summary><span class="xl-sec"><b lang="{{ lang }}">{{ sec.heading or "Lead" }}</b><span>{{ why(sec.first) }}</span></span>
+      <span class="xl-dots" aria-hidden="true">{% for i in sec["items"] %}<i class="m-{{ i.label }}"></i>{% endfor %}</span>
+      <span class="st st-{{ sec.first.label }}">{{ LBL[sec.first.label] }}</span></summary>
+    {% for i in sec["items"] %}
+    <div class="xl-pair">
+      <div><h4><span class="st st-{{ i.label }}">{{ LBL[i.label] }}</span> <a href="{{ i.url }}">{{ "English" if lang == "en" else "Swedish" }} ↗</a></h4><p lang="{{ lang }}">{{ i.text | truncate(420) }}</p></div>
+      <div><h4>Closest Finnish · {{ (i.closest_fi.heading or "Lead") if i.closest_fi else "none" }} <span class="xl-d">distance {{ i.distance }}</span></h4>
+        <p lang="fi">{{ (i.closest_fi.text | truncate(420)) if i.closest_fi else "" }}</p></div>
+    </div>
+    {% endfor %}
+  </details>
+  {% endfor %}
+</details>
+{% endfor %}
+{% endblock %}

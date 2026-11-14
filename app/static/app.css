@@ -344,3 +344,17 @@ body.page-graph footer { max-width: none; padding: .3rem 1rem; border: 0; font-s
   :root { --border: #6a6a7c; --muted: #c9c9d6; }
   .g-float, .topbar { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--surface); }
 }
+
+/* Ask page: what English / Swedish Wikipedia add (app/xlang.py) */
+.pill-xl { border-color: color-mix(in srgb, var(--rel-out) 45%, transparent); color: var(--rel-out); }
+.xl-adds { margin-top: 1.6rem; padding: 1rem 1.1rem; border: 1px solid color-mix(in srgb, var(--rel-out) 35%, var(--border));
+  border-radius: var(--radius); background: color-mix(in srgb, var(--rel-out) 5%, var(--surface)); }
+.xl-note { margin: .2rem 0 .4rem; color: var(--muted); font-size: .875rem; }
+.xl-add { display: flex; gap: .75rem; padding: .75rem 0 .2rem; border-top: 1px solid var(--border); }
+.xl-add > div { min-width: 0; }
+.xl-lang { flex: none; align-self: flex-start; margin-top: .1rem; padding: .05rem .4rem; border: 1px solid var(--border); border-radius: 5px;
+  font: 600 .6875rem var(--font-mono); color: var(--muted); }
+.xl-where { margin: 0; font-weight: 600; font-size: .9375rem; }
+.xl-text { margin: .2rem 0 .3rem; font-size: .9rem; color: color-mix(in srgb, var(--text) 85%, var(--muted));
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.xl-add a { font-size: .8125rem; }
