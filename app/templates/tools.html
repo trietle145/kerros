@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Editor tools · Kerros{% endblock %}
+{% block head %}<script type="module" src="{{ url_for('static', filename='tools.js') }}"></script>{% endblock %}
+{% block content %}
+<div class="page tools">
+  <header class="page-head">
+    <p class="kicker">For Wikipedia editors</p>
+    <h1>Find sources, catch contradictions, <em>see disagreement</em>.</h1>
+    <p class="lede">Three checks over every paragraph and revert since 2003. Counts and links only, never editors.</p>
+  </header>
+
+  <div class="seg" id="tool-tabs" role="tablist" aria-label="Tool">
+    <button type="button" role="tab" id="tab-cite" aria-controls="panel-cite" aria-selected="true" data-tab="cite">Citation finder</button>
+    <button type="button" role="tab" id="tab-contra" aria-controls="panel-contra" aria-selected="false" data-tab="contra">Contradictions</button>
+    <button type="button" role="tab" id="tab-radar" aria-controls="panel-radar" aria-selected="false" data-tab="radar">Edit-war radar</button>
+  </div>
+
+  <section class="tool-panel" id="panel-cite" role="tabpanel" aria-labelledby="tab-cite">
+    <p class="tool-help">Paste a sentence that needs a source. See which articles back it, and the references they use.</p>
+    <form class="tool-form" id="cite-form">
+      <label class="sr" for="cite-text">A sentence that needs a source</label>
+      <textarea id="cite-text" rows="2" lang="fi" placeholder="esim. Talvisota alkoi 30. marraskuuta 1939 ilman sodanjulistusta."></textarea>
+      <div class="tool-row"><button class="btn btn-primary" type="submit">Find sources</button>
+        <button class="linkish" type="button" data-example="Talvisota alkoi 30. marraskuuta 1939 ilman sodanjulistusta.">Try an example</button></div>
+    </form>
+    <div class="tool-out" id="cite-out" aria-live="polite"></div>
+  </section>
+
+  <section class="tool-panel" id="panel-contra" role="tabpanel" aria-labelledby="tab-contra" hidden>
+    <p class="tool-help">Pick an article. Where another article gives a different number for the same thing, you see the gap.</p>
+    <form class="tool-form picker" id="contra-form" autocomplete="off">
+      <label class="sr" for="contra-q">Article title</label>
+      <input id="contra-q" type="search" lang="fi" placeholder="Article title, e.g. Suomen sisällissota" list="contra-list">
+      <datalist id="contra-list"></datalist>
+      <button class="btn btn-primary" type="submit">Compare</button>
+    </form>
+    <div class="quick" id="contra-quick"></div>
+    <div class="tool-out" id="contra-out" aria-live="polite"></div>
+  </section>
+
+  <section class="tool-panel" id="panel-radar" role="tabpanel" aria-labelledby="tab-radar" hidden>
+    <p class="tool-help">Reverts between signed-in editors, per article and year. Select an article to see which paragraphs kept coming back.</p>
+    <div class="tool-out" id="radar-out" aria-live="polite"></div>
+  </section>
+</div>
+{% endblock %}

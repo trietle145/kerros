@@ -271,19 +271,20 @@ button → timeline → article as of a date.
 
 ### Checkpoint: Phase 2 done (the base)
 
-- [ ] The demo path above works end to end on the 3 hero articles.
-- [ ] Evaluation numbers recorded (vector-only and hybrid).
-- [ ] Review together, then plan Phase 3.
+- [x] The demo path above works end to end on the 3 hero articles.
+- [x] Evaluation numbers recorded (vector-only and hybrid; now 92% top-5, docs/architecture.md).
+- [x] Review together, then plan Phase 3.
 
 ---
 
-## Phase 3: the highlight, through time (open)
+## Phase 3: the highlight, through time (built)
 
-To be planned after Phase 2. The base stays as it is; the highlight is added next to it. Points to
-settle when building it are in `docs/architecture.md`, "Notes for the time features".
-
-**Front-runner:** the answer time slider. **Safety net:** the edit-war radar (needs only
-`revert_event`, so it works even if paragraph history slips).
+**Built (2026-11-14):** then-vs-now answers through `/ask` (the "answer time slider" idea:
+paragraph lifetimes + old-text vectors, two-stage + global time search, word diffs); cross-language
+gaps (`/compare/<page_id>`, "Other Wikipedias add" on answers; started from the parked "three
+languages" idea, with time added: when Finnish covered it, or lost it); the graph through time
+(B). Design in `docs/architecture.md`. **Not built, still possible:** trust badges, edit-war radar,
+citation history (table below).
 
 | Idea | For | What the user sees | Needs |
 | --- | --- | --- | --- |
@@ -300,14 +301,16 @@ settle when building it are in `docs/architecture.md`, "Notes for the time featu
 Once paragraph lifetimes exist, badges, "what changed" and the lens are mostly queries on the same
 table. Ideas needing paragraph history start with a pilot of ~200 articles.
 
-**Parked (no time angle or outside data):** three languages side by side (sv/en have no history),
-contradiction finder, source check (needs fetched web pages; ask the organisers).
+**Parked (no time angle or outside data):** contradiction finder, source check (needs fetched web pages; ask the organisers).
 **Later access routes:** browser extension and MCP server, both on the JSON API.
 
-## Phase 4: scale and polish (open)
+## Phase 4: scale and polish (in progress)
 
-Outline only: search over L for timing numbers, re-measure index recall at the new size, paragraph
-lifetimes for all articles if the highlight needs them, tidy the page, rehearse the demo.
+- [x] Dataset L passages built (1,545,854) and embedded on Modal (~1 h).
+- [ ] L vectors loaded (running 2026-11-14), then `eval/scale.py` + `eval/evaluate.py --l`; numbers
+  into `docs/architecture.md`, "Scale: S → M → L".
+- [ ] Public hosting (Caddy + password); answer-level eval on new questions (= demo script);
+  tidy the pages; rehearse the demo.
 
 ---
 

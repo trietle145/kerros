@@ -2,6 +2,7 @@
 
     python eval/evaluate.py              # each list alone and fused (= our search), 37 questions
     python eval/evaluate.py --misses     # also list questions whose article wasn't in the top 5
+    python eval/evaluate.py --l          # the same search over dataset L (all 568k Finnish articles)
 
 Questions: eval/test-questions.tsv, from the RAG starter (a question in fi, sv or en and the Finnish
 title of the article that answers it). A hit = that Finnish article among the top distinct articles.
@@ -24,9 +25,12 @@ ARTICLE_SQL = """SELECT v.page_id FROM (SELECT page_id, VEC_DISTANCE_COSINE(embe
                  FROM article_vector WHERE lang = 'fi' ORDER BY d LIMIT 30) v ORDER BY v.d LIMIT 10"""
 
 
+TABLES = ("passage", "passage_vector")
+
+
 def passages(lists, names_only=True):
     return lambda vector, question: [r["page_id"] for r in rank(vector, question, 10, 1, lists,
-                                                                names_only)]
+                                                                names_only, TABLES)]
 
 
 def whole_articles(vector, question):
@@ -46,7 +50,11 @@ def report(name, ranks, ms):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--misses", action="store_true")
+    ap.add_argument("--l", action="store_true", help="search l_passage / l_vector (dataset L)")
     args = ap.parse_args()
+    global TABLES
+    if args.l:
+        TABLES = ("l_passage", "l_vector")
     questions = list(csv.DictReader(open(Path(__file__).parent / "test-questions.tsv", encoding="utf-8"),
                                     delimiter="\t"))
     with closing(connect()) as con:
@@ -55,17 +63,26 @@ def main():
             cur.execute("SELECT page_id FROM article WHERE title = ?", (q["expected_fi_title"],))
             row = cur.fetchone()
             q["page_id"] = row[0] if row else None
+            if args.l and q["page_id"]:     # L half-loaded: an article with no vectors yet can't be found, leave it out
+                cur.execute("SELECT 1 FROM l_passage p JOIN l_vector v USING (text_hash) WHERE p.page_id = ? LIMIT 1",
+                            (q["page_id"],))
+                q["page_id"] = q["page_id"] if cur.fetchone() else None
     missing = [q["expected_fi_title"] for q in questions if not q["page_id"]]
     questions = [q for q in questions if q["page_id"]]
     t = time.perf_counter()
     vectors = embed([q["question"] for q in questions])
-    print(f"{len(questions)} questions ({len(missing)} expected articles not in M: {missing}); "
+    print(f"{len(questions)} questions ({len(missing)} left out, article not in M{' or no L vectors yet' * args.l}: {missing}); "
           f"embedding {(time.perf_counter() - t) * 1000 / len(questions):.0f} ms per question")
     modes = (("whole articles (S vectors)", whole_articles),
+             ("vec", passages(("vec",))), ("vec + ft (names)", passages(("vec", "ft"))),
+             ("passages (ours)", passages(("vec", "ft", "art", "xl", "name")))) if args.l else (
+             ("whole articles (S vectors)", whole_articles),
              ("vec", passages(("vec",))), ("vec + ft (all words)", passages(("vec", "ft"), False)),
              ("vec + ft (names)", passages(("vec", "ft"))), ("vec + art", passages(("vec", "art"))),
              ("all, ft all words", passages(("vec", "ft", "art"), False)),
-             ("passages (ours)", passages(("vec", "ft", "art"))))
+             ("vec + ft + art (before xl)", passages(("vec", "ft", "art"))),
+             ("vec + ft + art + xl", passages(("vec", "ft", "art", "xl"))),
+             ("passages (ours)", passages(("vec", "ft", "art", "xl", "name"))))
     for name, fn in modes:
         ranks, ms = [], []
         for q, v in zip(questions, vectors):

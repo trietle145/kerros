@@ -46,7 +46,6 @@ export function oftenReverted(nodes) {
 //   select(id): select a node and centre it; graphUrl(id): the graph page with that node as main.
 export function createPanel(root, { data, g, q, api, graphUrl, select }) {
   const byId = new Map(data.nodes.map(n => [n.id, n]));
-  const main = byId.get(data.main);
   const hot = oftenReverted(data.nodes);
   const lastYear = data.years[data.years.length - 1];
   let year = lastYear, node = null, yearly = null;      // yearly(): refresh the parts that depend on the year
@@ -67,16 +66,7 @@ export function createPanel(root, { data, g, q, api, graphUrl, select }) {
     body.append(view);
   }
 
-  function emptyView() {
-    const others = data.nodes.length - 1;
-    return el("div.gp-view.gp-empty", null,
-      el("h2", null, "How these articles connect"),
-      el("p", null,
-        el("span.gp-long", null, el("strong", { lang: "fi" }, main?.title || "The main article"),
-          ` and the ${others} Wikipedia article${others === 1 ? "" : "s"} closest to it. Each line is a link from one article to another: `),
-        el("span.gp-pitch", null, "explore how the sources connect, and how those connections grew.")),
-      el("p.gp-tip", null, "Select an article to read about it, or press play to travel through the years."));
-  }
+  function emptyView() { return el("div.gp-view.gp-empty"); }   // nothing selected: no text, the graph speaks
 
   function nodeView(n) {
     const absent = el("p.gp-absent", { hidden: true });
@@ -106,7 +96,7 @@ export function createPanel(root, { data, g, q, api, graphUrl, select }) {
     yearly();
 
     const view = el("article.gp-view.gp-node", { "aria-labelledby": "gp-title" },
-      el("p.gp-rel", null, dot(n.relation), (REL[n.relation] || REL.related).words),
+      el("p.gp-rel", null, dot(n.relation), (REL[n.relation] || REL.related).label),
       el("h2", { id: "gp-title", lang: "fi" }, n.title),
       el("p.gp-meta", null,
         n.created && el("span", null, `First version ${n.created}`),
@@ -124,8 +114,7 @@ export function createPanel(root, { data, g, q, api, graphUrl, select }) {
   // ---- learning path -------------------------------------------------------------------------
   function pathSection() {
     const go = el("button.g-btn.gp-path-go", { type: "button", onclick: load }, "Suggest a reading order");
-    const ASK = "In which order should you read these articles?";
-    const what = el("p.gp-path-what", null, ASK);         // the question, then where the order came from
+    const what = el("p.gp-path-what");                    // where the order came from, once there is one
     const clear = el("button.g-link", { type: "button", hidden: true, onclick: reset }, "Clear");
     const out = el("div.gp-path-out", { "aria-live": "polite" });
     let steps = [];
@@ -133,7 +122,7 @@ export function createPanel(root, { data, g, q, api, graphUrl, select }) {
     function reset() {
       steps = [];
       g.highlightPath(null);
-      out.replaceChildren(); what.textContent = ASK; clear.hidden = true; go.hidden = false;
+      out.replaceChildren(); what.textContent = ""; clear.hidden = true; go.hidden = false;
       go.focus();
     }
 
@@ -155,7 +144,7 @@ export function createPanel(root, { data, g, q, api, graphUrl, select }) {
         return out.replaceChildren(el("p.gp-path-err", null, "No reading order for these articles."));
       }
       g.highlightPath(steps.map(s => s.id));
-      what.textContent = (res.source === "llm" ? "Reading order chosen by the language model" : "Suggested order (heuristic)")
+      what.textContent = (res.source === "llm" ? "Chosen by the language model" : "Heuristic order")
         + (res._source === "fixture" ? ", sample data" : "");
       clear.hidden = false;
       out.replaceChildren(el("ol.gp-steps", null, steps.map((s, i) =>
@@ -179,7 +168,7 @@ export function createPanel(root, { data, g, q, api, graphUrl, select }) {
     markPath = mark;
 
     return el("section.gp-path", { "aria-label": "Learning path" },
-      el("div.gp-path-head", null, el("h3", null, "Learning path"), clear), what, go, out);
+      el("div.gp-path-head", null, what, clear), go, out);
   }
 
   return {

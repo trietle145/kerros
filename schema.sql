@@ -76,6 +76,18 @@ CREATE TABLE IF NOT EXISTS article_vector (
   VECTOR INDEX (embedding) M=16 DISTANCE=cosine
 );
 
+-- English and Swedish articles of dataset S mapped to the Finnish article on the same topic (same
+-- Wikidata id), so search can go from an en/sv article vector to Finnish passages in one statement.
+-- Filled by scripts/load_langlinks.py.
+CREATE TABLE IF NOT EXISTS article_langlink (
+  lang        CHAR(2) NOT NULL,               -- en or sv
+  page_id     INT UNSIGNED NOT NULL,          -- the en/sv article (as in article_vector)
+  fi_page_id  INT UNSIGNED NOT NULL,          -- the Finnish article
+  title       VARCHAR(255) NOT NULL,          -- the en/sv title
+  PRIMARY KEY (lang, page_id),
+  KEY (fi_page_id)
+) CHARACTER SET utf8mb4;
+
 -- One row per revert: a version whose text (same sha1) already existed earlier in the article,
 -- with other versions in between. Filled once after loading by scripts/build_reverts.py.
 -- Survival time of the undone text = reverted_at - undone_since.

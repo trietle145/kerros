@@ -12,6 +12,7 @@ from math import sqrt
 
 from flask import Blueprint, render_template, request
 
+from app import xlang
 from app.db import connect
 from scripts.wikitext import clean
 
@@ -133,7 +134,7 @@ def article(page_id):
         chart=_chart(months, (moment - timedelta(seconds=1)).strftime("%Y-%m")),
         edits=sum(m["edits"] for m in months), reverts=sum(m["reverts"] for m in months),
         cleanup=sum(m["cleanup"] for m in months), first_month=months[0]["month"],
-        today=datetime.now(UTC).date().isoformat())
+        today=datetime.now(UTC).date().isoformat(), other_langs=xlang.langs([page_id]).get(page_id, []))
 
 
 @bp.get("/article/<int:page_id>/timeline")

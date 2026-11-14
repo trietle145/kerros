@@ -103,10 +103,10 @@ async function start() {
   box("legend")?.replaceChildren(el("ul.gg", { "aria-label": "Legend" },
     order.map(r => el("li", null, dot(r), REL[r].label, r === "related" && el("span.gg-line.gg-dashed", { "aria-hidden": "true" }))),
     el("li", null, el("span.g-ring", { "aria-hidden": "true" }), "Often reverted"),
-    el("li", null, el("span.g-dot.gg-small", { "aria-hidden": "true" }), el("span.g-dot.gg-big", { "aria-hidden": "true" }), "Bigger: more links here"),
-    el("li", null, el("span.gg-line.gg-arrow", { "aria-hidden": "true" }), "Arrow: links one way only"),
-    years.length > 1 && el("li", null, el("span.gg-line.gg-added", { "aria-hidden": "true" }), "Link added",
-      el("span.gg-line.gg-removed", { "aria-hidden": "true" }), "removed that year")));
+    el("li", null, el("span.g-dot.gg-small", { "aria-hidden": "true" }), el("span.g-dot.gg-big", { "aria-hidden": "true" }), "More links"),
+    el("li", null, el("span.gg-line.gg-arrow", { "aria-hidden": "true" }), "One way"),
+    years.length > 1 && el("li", null, el("span.gg-line.gg-added", { "aria-hidden": "true" }), "Added",
+      el("span.gg-line.gg-removed", { "aria-hidden": "true" }), "removed")));
 
   // ---- timeline --------------------------------------------------------------------------------
   const per = counts(data), maxLinks = Math.max(1, ...per.map(c => c.links));
@@ -118,8 +118,12 @@ async function start() {
   const range = el("input", { type: "range", min: 0, max: last, step: 1, "aria-label": "Year", disabled: last === 0,
     oninput: () => { pause(); hideHint(); setIndex(+range.value); } });
   const bars = per.map(c => el("i", { style: `--h:${(c.links / maxLinks).toFixed(3)}` }));
-  let hint = null, timer = null;
-  try { if (last > 0 && !localStorage.graphPlayed) hint = el("p.gt-hint", null, "Press play to watch the connections grow"); } catch {}
+  let hint = null, timer = null, stepMs = STEP_MS;
+  const speed = el("select.gt-speed", { "aria-label": "Playback speed", disabled: last === 0,
+    onchange: () => { stepMs = STEP_MS / +speed.value; if (timer) { clearInterval(timer); timer = setInterval(advance, stepMs); } } },
+    [0.5, 1, 2, 4].map(x => el("option", { value: x }, x + "×")));
+  speed.value = "1";
+  try { if (last > 0 && !localStorage.graphPlayed) hint = el("p.gt-hint", null, "Press play"); } catch {}
   tl?.replaceChildren(el("div.gt", { role: "group", "aria-label": "Timeline" },
     playBtn,
     el("div.gt-now", null, yearOut, el("span.gt-counts", null, nNodes, " ", wNodes, " · ", nLinks, " ", wLinks)),
@@ -127,6 +131,7 @@ async function start() {
       el("div.gt-spark", { "aria-hidden": "true", title: "Links per year" }, bars),
       range,
       el("div.gt-ends", { "aria-hidden": "true" }, el("span", null, years[0]), last > 0 && el("span", null, years[last]))),
+    speed,
     hint));
   if (hint) playBtn.classList.add("is-inviting");
 
@@ -183,8 +188,9 @@ async function start() {
     playBtn.innerHTML = PAUSE;
     playBtn.setAttribute("aria-label", "Pause");
     playBtn.classList.add("is-playing");
-    timer = setInterval(() => { setIndex(index + 1); if (index === last) pause(); }, STEP_MS);
+    timer = setInterval(advance, stepMs);
   }
+  function advance() { setIndex(index + 1); if (index === last) pause(); }
   // Space plays or pauses from anywhere except controls that use Space themselves
   addEventListener("keydown", e => {
     if (e.key !== " " || !tl || e.target.closest?.("button, a, select, textarea, input:not([type=range])")) return;

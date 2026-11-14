@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Not found' if code == 404 else 'Something went wrong' }} · Kerros{% endblock %}
+{% block content %}
+<section class="page-error">
+  <p class="kicker">Error {{ code }}</p>
+  {% if code == 404 %}
+  <h1>That page is not here.</h1>
+  <p>The address may be mistyped, or the article is not in the dataset.</p>
+  {% else %}
+  <h1>Something went wrong on our side.</h1>
+  <p>Usually the database connection dropped for a moment. Going back and trying again normally works.</p>
+  {% endif %}
+  <p class="page-error-actions">
+    <a class="btn btn-primary" href="{{ url_for('ask.index', mock=request.args.get('mock')) }}">Back to Ask</a>
+    <button class="btn" type="button" onclick="history.back()">Previous page</button>
+  </p>
+</section>
+{% endblock %}
