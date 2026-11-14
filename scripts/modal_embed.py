@@ -30,7 +30,7 @@ image = (modal.Image.debian_slim(python_version="3.12")
 app = modal.App("lakebandits-embed", image=image)
 
 
-@app.function(gpu="A10G", timeout=1800, max_containers=4)
+@app.function(gpu="A10G", timeout=1800, max_containers=8)
 def embed_remote(texts):
     from app.embed import embed
     return embed(texts, batch_size=32)

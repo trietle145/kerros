@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{{ title or "Article history" }} · history{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='history.css') }}">{% endblock %}
+{% block content %}
+{% if error %}
+  <p class="notice">{{ error }}</p>
+{% else %}
+<header class="hist-head">
+  <p class="kicker">Article history</p>
+  <h1>{{ title }}</h1>
+  <p class="totals">
+    {{ "{:,}".format(edits) }} edits since {{ first_month }} ·
+    {{ "{:,}".format(reverts) }} reverts
+    ({{ "{:,}".format(cleanup) }} undid anonymous edits, {{ "{:,}".format(reverts - cleanup) }} undid named editors) ·
+    <a href="https://fi.wikipedia.org/?curid={{ page_id }}">today on Wikipedia</a>
+  </p>
+</header>
+
+<figure class="timeline">
+  <svg viewBox="0 -4 {{ chart.width }} {{ chart.height + 22 }}" role="img"
+       aria-label="Edits per month for {{ title }}; reverts marked in red. Click a month to read the article as it was then.">
+    {% for b in chart.bars %}
+    <a href="{{ b.href }}" class="{{ 'sel' if b.selected }}">
+      <title>{{ b.month }}: {{ b.edits }} edits, {{ b.reverts }} reverts ({{ b.cleanup }} of anonymous edits)</title>
+      <rect class="hit" x="{{ b.x }}" y="0" width="{{ b.w }}" height="{{ chart.height }}"/>
+      <rect class="edits" x="{{ b.x }}" y="{{ chart.height - b.h }}" width="{{ b.w }}" height="{{ b.h }}"/>
+      <rect class="named" x="{{ b.x }}" y="{{ chart.height - b.h_rev }}" width="{{ b.w }}" height="{{ b.h_rev - b.h_clean }}"/>
+      <rect class="cleanup" x="{{ b.x }}" y="{{ chart.height - b.h_clean }}" width="{{ b.w }}" height="{{ b.h_clean }}"/>
+    </a>
+    {% endfor %}
+    {% for b in chart.years %}
+    <text x="{{ b.x }}" y="{{ chart.height + 16 }}">{{ b.year }}</text>
+    {% endfor %}
+  </svg>
+  <figcaption>
+    <span><i class="k-edits"></i>edits per month</span>
+    <span><i class="k-named"></i>reverts between named editors</span>
+    <span><i class="k-cleanup"></i>reverts of anonymous edits (mostly cleanup)</span>
+    <span class="muted">bar height ∝ √count · click a month to read the article as it was then</span>
+  </figcaption>
+</figure>
+
+<form class="asof" method="get">
+  <label>Read the article as of
+    <input type="date" name="as_of" value="{{ moment.date().isoformat() }}" min="{{ first_month }}-01" max="{{ today }}">
+  </label>
+  <button>Show</button>
+  {% if request.args.get('as_of') %}<a href="?">today</a>{% endif %}
+</form>
+
+{% if version %}
+<aside class="version">
+  Version <a href="{{ version.url }}">{{ version.rev_id }}</a>, saved {{ version.valid_from[:16].replace("T", " ") }} UTC,
+  {% if version.valid_to %}replaced {{ version.valid_to[:16].replace("T", " ") }}{% else %}still current{% endif %}
+  {% if version.comment %}· summary: “{{ version.comment[:140] }}”{% endif %}
+  · <a href="https://fi.wikipedia.org/w/index.php?diff={{ version.rev_id }}&oldid=prev">what this edit changed</a>
+</aside>
+<article class="wiki">
+  {% for kind, text in sections %}
+    {% if kind == "ul" %}<ul>{% for item in text %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% elif kind == "h2" %}<h2>{{ text }}</h2>
+    {% elif kind == "h3" %}<h3>{{ text }}</h3>
+    {% else %}<p>{{ text }}</p>{% endif %}
+  {% endfor %}
+</article>
+{% else %}
+  <p class="notice">The article did not exist yet on {{ moment.date() }}. Its history starts in {{ first_month }}.</p>
+{% endif %}
+{% endif %}
+{% endblock %}

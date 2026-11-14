@@ -36,21 +36,24 @@ def main(src=None, embed_chunks=None):
     for h, text in todo.items():
         assert hashlib.sha256(text.encode("utf-8")).digest() == h, "hash does not match its input"
 
-    hashes, inputs, out = list(todo), list(todo.values()), []
+    hashes, inputs = list(todo), list(todo.values())
+    del todo
     print(f"{len(inputs)} distinct texts to embed with {MODEL}", flush=True)
-    start = time.time()
+    start, done, writer = time.time(), 0, None
     chunks = [inputs[i:i + CHUNK] for i in range(0, len(inputs), CHUNK)]
-    for vecs in (embed_chunks or (lambda cs: map(embed, cs)))(chunks):
-        out += vecs
-        done, secs = len(out), time.time() - start
-        print(f"{done}/{len(inputs)} in {secs / 60:.1f} min ({done / secs:.1f}/s), "
-              f"ETA {(len(inputs) - done) / (done / secs) / 60:.1f} min", flush=True)
-
-    vectors = np.frombuffer(b"".join(out), "<f4")
-    pq.write_table(pa.table({
-        "text_hash": pa.array(hashes, pa.binary(32)),
-        "model": pa.array([MODEL] * len(hashes)),
-        "embedding": pa.FixedSizeListArray.from_arrays(pa.array(vectors), 1024)}), dst)
+    for vecs in (embed_chunks or (lambda cs: map(embed, cs)))(chunks):   # in order
+        batch = pa.table({            # written as it arrives: 400k vectors never sit in memory
+            "text_hash": pa.array(hashes[done:done + len(vecs)], pa.binary(32)),
+            "model": pa.array([MODEL] * len(vecs)),
+            "embedding": pa.FixedSizeListArray.from_arrays(
+                pa.array(np.frombuffer(b"".join(vecs), "<f4")), 1024)})
+        writer = writer or pq.ParquetWriter(dst, batch.schema)
+        writer.write_table(batch)
+        done, secs = done + len(vecs), time.time() - start
+        if done % (CHUNK * 20) < CHUNK or done == len(inputs):
+            print(f"{done}/{len(inputs)} in {secs / 60:.1f} min ({done / secs:.1f}/s), "
+                  f"ETA {(len(inputs) - done) / (done / secs) / 60:.1f} min", flush=True)
+    writer.close()
     print(f"written to {dst}")
 
 

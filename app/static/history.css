@@ -1,0 +1,48 @@
+/* Article history page (owner: A). Light and dark follow the system setting. */
+:root {
+  --bg: #fbfaf8; --fg: #1d1d1f; --muted: #6b6b70; --line: #e4e2dd; --link: #2a5db0;
+  --edits: #8aa4c8; --named: #c0392b; --cleanup: #e8a598; --sel: #f2c14e; --card: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #16171a; --fg: #ececee; --muted: #9a9aa2; --line: #2c2e33; --link: #8ab4f8;
+          --edits: #4f6d96; --named: #e5534b; --cleanup: #8c4a42; --sel: #d9a93a; --card: #1e2024; }
+}
+body { margin: 0; background: var(--bg); color: var(--fg);
+       font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+a { color: var(--link); }
+footer { max-width: 960px; margin: 0 auto; padding: 16px; color: var(--muted); font-size: 13px;
+         border-top: 1px solid var(--line); }
+
+.kicker { margin: 0; color: var(--muted); font-size: 13px; letter-spacing: .06em; text-transform: uppercase; }
+.hist-head h1 { margin: 2px 0 6px; font-size: 32px; line-height: 1.2; }
+.totals { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+
+.timeline { margin: 0 0 20px; padding: 14px 14px 10px; background: var(--card);
+            border: 1px solid var(--line); border-radius: 10px; }
+.timeline svg { width: 100%; height: auto; display: block; overflow: visible; }
+.timeline .hit { fill: transparent; }
+.timeline .edits { fill: var(--edits); }
+.timeline .named { fill: var(--named); }
+.timeline .cleanup { fill: var(--cleanup); }
+.timeline a:hover .hit, .timeline a:focus .hit { fill: var(--line); }
+.timeline a.sel .hit { fill: var(--sel); opacity: .45; }
+.timeline text { fill: var(--muted); font-size: 11px; }
+.timeline figcaption { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 6px;
+                       color: var(--muted); font-size: 12px; }
+.timeline figcaption i { display: inline-block; width: 10px; height: 10px; margin-right: 5px;
+                         border-radius: 2px; vertical-align: -1px; }
+.k-edits { background: var(--edits); } .k-named { background: var(--named); }
+.k-cleanup { background: var(--cleanup); } .muted { opacity: .8; }
+
+.asof { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 14px; }
+.asof input, .asof button { font: inherit; padding: 4px 8px; border: 1px solid var(--line);
+                            border-radius: 6px; background: var(--card); color: var(--fg); }
+.asof button { cursor: pointer; }
+
+.version { padding: 10px 14px; margin: 0 0 18px; background: var(--card); border: 1px solid var(--line);
+           border-left: 3px solid var(--sel); border-radius: 6px; color: var(--muted); font-size: 14px; }
+.wiki h2 { margin: 28px 0 8px; font-size: 22px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+.wiki h3 { margin: 20px 0 6px; font-size: 18px; }
+.wiki p, .wiki li { max-width: 70ch; }
+.notice { padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 6px; }

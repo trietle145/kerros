@@ -3,6 +3,7 @@
     python scripts/load_vectors.py                 # data/passages.parquet + data/passage_vectors.parquet
     python scripts/load_vectors.py data/pilot      # the pilot files (both people run this)
     python scripts/load_vectors.py --verify        # counts, every passage has a vector, recall@10
+    python scripts/load_vectors.py data/history --history   # Phase 3: vectors only, into history_vector
 
 Each file loads on its own if the other is missing, so passages (and their FULLTEXT index) can go
 in before the GPU run ends. `passage` is replaced each time (it is rebuilt from the file);
@@ -53,6 +54,24 @@ def load(cur, con, folder):
                 "VALUES (?,?,?)", rows, "vectors")
 
 
+def load_history(cur, con, path):
+    """Historical vectors -> history_vector (never touches `passage`), streamed in batches; then
+    today's vectors are copied in too, so an AS OF search also finds texts that are still live."""
+    start, done = time.time(), 0
+    for batch in pq.ParquetFile(path).iter_batches(batch_size=BATCH, columns=["text_hash", "embedding"]):
+        emb = batch.column("embedding").values.to_numpy().astype("<f4").reshape(-1, 1024)
+        cur.executemany("INSERT IGNORE INTO history_vector (text_hash, embedding) VALUES (?, ?)",
+                        list(zip(batch.column("text_hash").to_pylist(), (e.tobytes() for e in emb))))
+        con.commit()
+        done += len(emb)
+        if done % 20_000 < BATCH:
+            print(f"history vectors: {done:,} in {(time.time() - start) / 60:.1f} min", flush=True)
+    cur.execute("INSERT IGNORE INTO history_vector SELECT text_hash, embedding FROM passage_vector")
+    con.commit()
+    cur.execute("SELECT COUNT(*) FROM history_vector")
+    print(f"history_vector: {cur.fetchone()[0]:,} vectors ({(time.time() - start) / 60:.1f} min)")
+
+
 def verify(cur, n=50):
     cur.execute("SELECT (SELECT COUNT(*) FROM passage), (SELECT COUNT(*) FROM passage_vector), "
                 "(SELECT COUNT(*) FROM passage p LEFT JOIN passage_vector v USING (text_hash) "
@@ -87,11 +106,15 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("folder", nargs="?", default=str(ROOT / "data"))
     ap.add_argument("--verify", action="store_true", help="check what is loaded and exit")
+    ap.add_argument("--history", action="store_true",
+                    help="load FOLDER/passage_vectors.parquet into history_vector only (Phase 3)")
     args = ap.parse_args()
     con = connect()
     cur = con.cursor()
     if args.verify:
         sys.exit(0 if verify(cur) else 1)
+    if args.history:
+        return load_history(cur, con, Path(args.folder) / "passage_vectors.parquet")
     load(cur, con, Path(args.folder))
     verify(cur)
 
