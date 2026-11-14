@@ -207,3 +207,17 @@ the current ones. Extrapolated to all 862,076 versions: ~350–450k distinct tex
 
 **Full run** = `scripts/build_history.py <all page ids>` (to parallelise first) →
 `modal run scripts/modal_embed.py --src data/history/passages.parquet` → load `history_vector`.
+
+**Full-size measurements (2026-11-14, all 862,076 versions):** `build_history.py --all` in
+32 min (3 workers): 530,885 distinct texts, 593,195 lifetimes; 283,065 new texts (≥ 1 day, no
+vector yet, 166 `#OHJAUS` junk removed) embedded on Modal in ~15 min at ~300/s (8 × A10G);
+`history_vector` = **353,166** vectors, loaded in 15 min.
+- Global time-filtered search (vector `LIMIT n` → `AS OF` join): ~250 ms, but too few passages
+  survive the date filter (LIMIT 200: 0–30 per question, LIMIT 500: 6–170): the nearest
+  neighbours are mostly other years' versions of the same paragraphs.
+- **Two-stage** (today's hybrid search picks ~10 articles → their passages live on the date,
+  ranked by exact vector distance): 8/8 passages for most questions, right sections found
+  (*Moskovan rauhan ehdot* @ 2008 → *Rauhanehdot*); median ~380 ms, max 1.7 s cold. Blind spot:
+  topics whose articles today were written after the date (*sisällissodan vankileirit* @ 2007:
+  0), which the global search does cover.
+- **Design:** merge both (two-stage + global survivors, dedupe, sort by distance, top 8).
