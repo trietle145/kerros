@@ -323,10 +323,13 @@ lifetimes) next to these.
 | `scripts/build_passages.py` | Newest revision → cleaned text → one passage per section → `passages.parquet`; distinct embedding inputs to embed |
 | `scripts/embed_passages.py` | bge-m3 over the distinct texts → parquet of `text_hash, embedding`; runs wherever a GPU is |
 | `scripts/load_vectors.py` | That parquet → `passage_vector`, then builds the vector index |
-| `app/db.py` | Connection and the retrieval queries |
-| `app/embed.py` | Question → vector (bge-m3, same model and settings as the notebook) |
+| `app/db.py` | Connection (sets `mhnsw_ef_search = 80`) |
+| `app/embed.py` | `embed()`: bge-m3 for passages *and* questions, one function so the settings match |
+| `app/search.py` | Retrieval: vector, FULLTEXT prefix terms, RRF; optional `app/rerank.py` |
+| `app/history.py` | Time queries and routes: as of a date, timeline, `stats()` for source cards |
+| `app/ask.py` | Routes: the page, `/ask`, `/summarise/<page_id>` |
 | `app/llm.py` | Answer and summary prompts; provider read from a setting |
-| `app/main.py` | Flask: the page, `/ask` (optional `as_of`, unused for now), `/summarise/<page_id>`, `/article/<page_id>?as_of=`, `/article/<page_id>/timeline`, and a JSON API the extension or MCP can use later |
+| `app/main.py` | Flask app: registers the `ask` and `history` blueprints (routes in `tasks/plan.md`, "Contracts"); the JSON routes are the API the extension or MCP can use later |
 | `schema.sql` | All five tables; runs on any MariaDB 11.7+ |
 | `eval/evaluate.py` | Retrieval and citation checks (below) |
 

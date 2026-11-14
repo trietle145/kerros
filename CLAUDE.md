@@ -69,7 +69,10 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
   data under `data/` (never committed).
 
 ## Phases (tasks with acceptance criteria in `tasks/plan.md`)
-Split between two people: **A = database and history**, **B = paragraphs, vectors and answers**.
+Split between two people (revised 2026-11-14): **A = data and time** (passages, embedding,
+loading, reverts, time views), **B = search, answers and app** (retrieval, hybrid, reranker,
+prompts, Flask, eval). One owner per file and fixed contracts: `tasks/plan.md`, "How the two
+people split the work".
 1. Get running: MariaDB on D:, shared over Tailscale; M loaded (overnight); paragraphs built,
    embedded on a GPU and loaded; S vectors loaded.
 2. The base: cited answers (vector, then hybrid; beat the starter's 76% top-5), time views
@@ -153,7 +156,7 @@ Split between two people: **A = database and history**, **B = paragraphs, vector
   (29,460 rows, 0.7 min; `load_s.py --verify` ok, search ~1 ms warm). The Verda machine with
   `docker-compose.yml` stays the plan for an always-on shared host.
 - `.env.example` lists every setting; copy to `.env` (git-ignored) and fill in.
-- Next: paragraphs (1.B1), revert detection (2.A1).
+- Next: shared skeleton (1.S), then in parallel A: passages (1.A6), B: search + eval (2.B1).
 
 ## Coding style
 - Use the `ponytail` skill (level full) for every coding task: the smallest code that works,
