@@ -35,8 +35,11 @@ def parse(text, n_sources):
 
 
 def answer(question, as_of=None):
-    """question -> the /ask JSON (kind "plain"). as_of is accepted; dated questions get their own
-    path (then vs now) later."""
+    """question -> the /ask JSON. A question about how Wikipedia stood on a date (or any question
+    with as_of) goes to the then-vs-now path (kind "then_vs_now"); the rest are kind "plain"."""
+    from app import timeqa
+    if r := timeqa.route(question, as_of):
+        return timeqa.answer(question, r)
     sources = search(question, k=8)
     if not sources:
         return {"question": question, "kind": "plain", "sources": [],
