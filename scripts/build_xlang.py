@@ -17,9 +17,11 @@ ponytail: fixed cut-offs, an LLM judge for "partly" if the eval asks for it.
     modal run scripts/modal_embed.py --src data/xlang/passages.parquet     # -> passage_vectors.parquet
     python scripts/build_xlang.py load            # server: xlang_passage + xlang_vector
     python scripts/build_xlang.py label           # server: a label for every paragraph (one SQL per article)
+    python scripts/build_xlang.py prune           # server: drop loaded paragraphs the bibliography filter rejects
     python scripts/build_xlang.py --verify        # counts, every paragraph labelled, spot checks
 """
 import argparse
+import re
 import time
 from collections import defaultdict
 from datetime import datetime
@@ -34,7 +36,15 @@ from load_vectors import batches, stream_vectors
 OUT = ROOT / "data" / "xlang"
 build_passages.SKIP |= {"references", "notes", "citations", "sources", "bibliography", "further reading",
                         "external links", "see also", "explanatory notes", "works cited", "footnotes",
-                        "referenser", "källor", "noter", "fotnoter", "externa länkar", "litteratur", "se även", "gallery", "bilder", "galleri"}
+                        "referenser", "källor", "noter", "fotnoter", "externa länkar", "litteratur", "se även", "gallery", "bilder", "galleri",
+                        "literature", "other sources", "general references", "general and cited references",
+                        "publications", "works", "selected works", "tryckta källor", "vidare läsning"}
+# book lists under a neutral heading ("English", "Finnish, Russian and other languages"): not prose
+CITATIONS = re.compile(r"ISBN|Retrieved \d|Archived from|Hämtad \d|Läst \d|doi:")
+
+
+def keep(heading, text):
+    return (heading or "").lower() not in build_passages.SKIP and not CITATIONS.search(text)
 SCHEMA = build_passages.SCHEMA.append(pa.field("lang", pa.string())).append(pa.field("fi_page_id", pa.uint32()))
 COVERED, LOST_PAST, LOST_NOW, NEAR = 0.28, 0.27, 0.33, 0.36
 FOREVER = datetime(2038, 1, 1)
@@ -73,7 +83,8 @@ def make_passages():
         for r in pq.read_table(S / f"articles-{lang}.parquet").to_pylist():
             if r["wikidata_id"] in fi and not build_passages.REDIRECT.match(r["text"]):
                 rows += [{**p, "lang": lang, "fi_page_id": fi[r["wikidata_id"]]}
-                         for p in build_passages.passages(r["page_id"], r["rev_id"], r["title"], r["text"], markdown=True)]
+                         for p in build_passages.passages(r["page_id"], r["rev_id"], r["title"], r["text"], markdown=True)
+                         if keep(p["heading"], p["text"])]
     OUT.mkdir(parents=True, exist_ok=True)
     pq.write_table(pa.Table.from_pylist(rows, SCHEMA), OUT / "passages.parquet")
     print(f"{len(rows):,} paragraphs from {len({(r['lang'], r['page_id']) for r in rows}):,} en/sv articles")
@@ -143,6 +154,15 @@ def label_article(cur, fi_page_id):
     return out
 
 
+def prune(cur, con):
+    """Drop loaded paragraphs that keep() now rejects (no re-embedding or relabelling needed)."""
+    cur.execute("SELECT lang, page_id, position, heading, text FROM xlang_passage")
+    gone = [r[:3] for r in cur.fetchall() if not keep(r[3], r[4])]
+    cur.executemany("DELETE FROM xlang_passage WHERE lang=? AND page_id=? AND position=?", gone)
+    con.commit()
+    print(f"pruned {len(gone)} bibliography paragraphs")
+
+
 def label(cur, con):
     cur.execute("SET mhnsw_ef_search = 80")
     cur.execute("SELECT DISTINCT fi_page_id FROM xlang_passage WHERE label IS NULL")
@@ -166,6 +186,8 @@ def verify(cur):
     print(f"{n:,} paragraphs for {arts:,} Finnish articles, {labelled:,} labelled, {no_vec} without vector")
     print(cur.fetchall())
     assert n and labelled == n and no_vec == 0
+    cur.execute("SELECT heading, text FROM xlang_passage")
+    assert all(keep(h, t) for h, t in cur.fetchall()), "bibliography paragraphs left: run prune"
     checks = [("en", "Winter War", "Shelling of Mainila and Soviet intentions", "elsewhere"),
               ("sv", "Vinterkriget", "Kvarkentrafiken", "missing"),
               ("en", "Winter War", "Foreign volunteers", "lost")]
@@ -179,7 +201,7 @@ def verify(cur):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("step", nargs="?", choices=["passages", "load", "label"])
+    ap.add_argument("step", nargs="?", choices=["passages", "load", "label", "prune"])
     ap.add_argument("--verify", action="store_true")
     a = ap.parse_args()
     if a.step == "passages":
@@ -190,6 +212,8 @@ def main():
         load(cur, con)
     elif a.step == "label":
         label(cur, con)
+    elif a.step == "prune":
+        prune(cur, con)
     if a.verify or not a.step:
         verify(cur)
 
