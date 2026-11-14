@@ -19,10 +19,12 @@ cd LakeBandits_junction && git pull -q
 
 if [ ! -f .env ]; then                      # random passwords, written once, never committed
   ROOTPW=$(openssl rand -hex 16); PW=$(openssl rand -hex 16)
+  RAM_GB=$(awk '/MemTotal/ {print int($2 / 1048576)}' /proc/meminfo)
+  POOL=$(( RAM_GB / 4 )); CACHE=$(( RAM_GB / 16 > 0 ? RAM_GB / 16 : 1 ))   # leave room for bge-m3 (~5 GB)
   sed -e "s/^MARIADB_ROOT_PASSWORD=.*/MARIADB_ROOT_PASSWORD=$ROOTPW/" \
       -e "s/^MARIADB_USER=.*/MARIADB_USER=wiki/;  s/^MARIADB_PASSWORD=.*/MARIADB_PASSWORD=$PW/" \
       -e "s/^DB_USER=.*/DB_USER=wiki/;            s/^DB_PASSWORD=.*/DB_PASSWORD=$PW/" \
-      -e "s/^INNODB_BUFFER_POOL=.*/INNODB_BUFFER_POOL=8G/; s/^MHNSW_CACHE=.*/MHNSW_CACHE=2G/" \
+      -e "s/^INNODB_BUFFER_POOL=.*/INNODB_BUFFER_POOL=${POOL}G/; s/^MHNSW_CACHE=.*/MHNSW_CACHE=${CACHE}G/" \
       .env.example > .env
 fi
 $SUDO docker compose up -d
