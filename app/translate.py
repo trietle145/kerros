@@ -27,13 +27,14 @@ def _model(to):
 
 @lru_cache(maxsize=2000)
 def translate(text, to="en"):
-    """Finnish text -> en/sv, line breaks kept. Greedy decoding: twice as fast as beam search and
-    as accurate on dates and figures in our tests (~5 s for a 300-word passage on the server)."""
+    """Finnish text -> en/sv, line breaks kept. Beam search (4): greedy decoding was twice as fast
+    but lost meaning ("lavastama", staged -> "Soviet-style"). ~3 s for a typical passage, ~10 s
+    for the longest, cached after."""
     tok, model = _model(to)
     lines = [SPLIT.split(line) for line in text.splitlines() if line.strip()]
     with _lock:
         out = model.generate(**tok([s for line in lines for s in line], return_tensors="pt",
-                                   padding=True, truncation=True), num_beams=1, max_new_tokens=400)
+                                   padding=True, truncation=True), num_beams=4, max_new_tokens=400)
     done = iter(tok.batch_decode(out, skip_special_tokens=True))
     return "\n".join(" ".join(next(done) for _ in line) for line in lines)
 
@@ -59,4 +60,5 @@ if __name__ == "__main__":
     en = translate("Valkoiset valtasivat Viipurin 29. huhtikuuta 1918. Punaisia kuoli 500–800.\nSota päättyi.")
     print(f"{time.time() - t:.1f} s: {en!r}")
     assert "1918" in en and "29" in en and "\n" in en      # dates kept (figures may be spelled out)
+    assert "staged" in translate("Mainilan laukaukset olivat Neuvostoliiton lavastama tapahtuma."), "meaning lost"
     print("ok")
