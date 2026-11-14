@@ -55,16 +55,16 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
   searches. Defaults (M=6) found only 79% of the true top 10. Re-measure recall with
   `index_recall.py` when the number of vectors changes, but start from these values.
 - Answer-writing model: Claude API ($20 per person) or Gemini, kept as a setting in `.env`.
-- **Hosting (OPEN).** Now: MariaDB runs locally in Docker on A's PC; since M loads in ~12 min,
-  each person can run their own local copy for development (share only the embedded vectors as a
-  file). Leading option for the team and the demo: **one always-on rented CPU server** (4 vCPU,
-  16 GB RAM, 60 GB disk; Verda credits if CPU-only machines exist, else Hetzner/DigitalOcean, or
-  MariaDB's own cloud if the mentors offer it) running `docker-compose.yml` with MariaDB plus,
-  once it exists, the Flask app and Caddy for public HTTPS. Data downloaded and loaded on the
-  server. MariaDB is never public: the app reaches it inside Docker, the team over Tailscale
-  (`DB_BIND` = Tailscale IP), each with their own login. Deploy = `git pull && docker compose up
-  -d --build`. Embedding all paragraphs runs once on a GPU (Modal or Verda); questions are
-  embedded on the server's CPU.
+- **Hosting (decided 2026-11-14): one always-on Verda CPU server**, `lakebandits-db`,
+  CPU.4V.16G, FIN-01, Ubuntu 24.04, 80 GB, ~€1.50/day from the Lake Bandits project (€200
+  credits). Set up by `scripts/server_setup.sh`; runs `docker-compose.yml` (MariaDB now; Flask
+  app and Caddy for public HTTPS later). MariaDB listens on the server's 127.0.0.1 only; people
+  reach it by SSH tunnel (`ssh -N -L 3307:127.0.0.1:3306 root@<server>`, see `SERVER.md`), each
+  with their own login (`triet` read-write, `hung` read-only). The repo is private, so the
+  server's copy came from a git bundle; deploy later = update its copy, `docker compose up -d
+  --build`. Embedding runs on Modal (`scripts/modal_embed.py`); questions are embedded on the
+  CPU of whatever machine runs the app. Local Docker MariaDB copies still work for development.
+  **Delete (not shut down) the instance after the event**; shut-down instances still bill.
 - Branches: `planning` = integration (shared files and docs); A works on `a-data-time`, B on
   `b-search-app`, merged into `planning` by PR; `main` gets `planning` at Phase checkpoints.
   Create `.venv` first (`pip install -r requirements.txt`); data under `data/` (never committed).
@@ -156,10 +156,15 @@ people split the work".
   **3307** (a MySQL 9.4 Windows service holds 3306; leave it alone). Schema applied, ef_search=80
   confirmed, login `triet`. **All of M is loaded** (19,742 articles, 862,076 versions, 6.1 GB,
   11.5 min; `load_m.py --verify 30` all ok). **S vectors loaded** into `article_vector`
-  (29,460 rows, 0.7 min; `load_s.py --verify` ok, search ~1 ms warm). The Verda machine with
-  `docker-compose.yml` stays the plan for an always-on shared host.
+  (29,460 rows, 0.7 min; `load_s.py --verify` ok, search ~1 ms warm). **Passages and vectors
+  loaded** (66,642 each, embedded on Modal in 6.4 min; recall@10 99.4%, ~11–17 ms).
+- **Shared server** (`root@135.181.8.213`, SSH alias `lakebandits` on A's PC) holds the same:
+  all of M, S vectors, 66,642 passages + vectors (recall 99.2%), all verified. `revert_event`
+  empty until 2.A1.
+- Loading bge-m3 needs ~5 GB free memory; short of it, it fails with misleading errors.
 - `.env.example` lists every setting; copy to `.env` (git-ignored) and fill in.
-- Next, in parallel: A passages (1.A6) on `a-data-time`, B search + eval (2.B1) on `b-search-app`.
+- Next: A revert detection (2.A1) on `a-data-time`; B search + eval (2.B1) on `b-search-app`,
+  against the server.
 
 ## Coding style
 - Use the `ponytail` skill (level full) for every coding task: the smallest code that works,
