@@ -1,6 +1,6 @@
 # Project: Wikipedia trust tool on MariaDB (Junction hackathon, MariaDB challenge)
 
-> Updated 2026-11-14. Items marked **OPEN** are not decided yet.
+> Updated 2026-11-14 evening. Items marked **OPEN** are not decided yet.
 > The plan and task list: `tasks/plan.md`.
 
 ## Goal
@@ -36,13 +36,15 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
   with reverts. Build this first. In the base the two tracks sit side by side and meet only at
   the History button on a cited source.
 - The highlight is one feature **through time**, added on top of the base without changing it.
-  **Direction (2026-11-14, pilot works, both people to confirm): time-aware retrieval** ("then vs
+  **Built (2026-11-14): time-aware retrieval** ("then vs
   now" answers). Meaning lives in the vector, time lives in the table: the date is stripped from
   the question and becomes `FOR SYSTEM_TIME AS OF` on a system-versioned `passage_history`;
   dates are never mixed into embeddings. Today's counterpart of an old passage is found by vector
   distance within the article (headings get renamed), then word-diffed. The same table later
   gives source-health badges (stable / rewritten / contested / lost its citation). Design and the
-  MariaDB selling points: docs/architecture.md, "Time-aware retrieval". Fallback highlight: the
+  MariaDB selling points: docs/architecture.md, "Time-aware retrieval". Second highlight, also
+  built: cross-language gaps (what en/sv Wikipedia say that Finnish does not, and whether Finnish
+  once did; docs/architecture.md, "Cross-language gaps"). Unbuilt idea kept as a fallback: the
   edit-war radar (needs only `revert_event`).
 - **Selling point for the MariaDB criterion:** the database does the hard parts. One SQL
   statement does vector search + temporal filter + citation of the version live on that date;
@@ -63,11 +65,12 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
   JOIN in MariaDB). Keyword half = `FULLTEXT(title, heading, text)` in boolean mode with **prefix
   terms** built in Python, because FULLTEXT has no Finnish stemming: words of 6+ letters drop
   their last 3 letters (min 4) and get `*` (Kekkonen → `Kekko*`); numbers and short words exact.
-- **As built:** hybrid over **three** lists (passage vectors, FULLTEXT on **names and years only**,
-  whole-article S vectors), RRF in one statement. Starter's 37 questions: hit@5 76%, hit@10 86%
-  (= the starter's best, but with paragraph-level citations); keyword half on every word was
-  worse (70%). Table and reasons: docs/architecture.md, "Approaches for retrieval" and "Design
-  choices at a glance (for the pitch)".
+- **As built:** hybrid over **five** lists, RRF in one statement: passage vectors, FULLTEXT on
+  **names and years only**, Finnish whole-article S vectors, **English/Swedish S article vectors
+  joined to their Finnish article** (`article_langlink`, Wikidata id), and en/sv titles written
+  verbatim in the question. Starter's 37 questions: **hit@5 92%, hit@10 95%** (starter 76% / 86%;
+  73% / 86% before the en/sv lists); keyword half on every word was worse. Table and reasons:
+  docs/architecture.md, "Approaches for retrieval" and "Design choices at a glance (for the pitch)".
 - Keep the shipped S article vectors for whole-article search and the sv/en articles.
 - **Vector index setting (fixed, recommended by MariaDB):** `VECTOR INDEX (embedding) M=16
   DISTANCE=cosine` on every vector table, and `SET mhnsw_ef_search = 80` on every connection that
@@ -77,29 +80,30 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
   a setting in `.env`; key on the server and in A's local `.env` only. ~$0.03 per answer, ~3–4 s.
 - **Hosting (decided 2026-11-14): one always-on Verda CPU server**, `lakebandits-db`,
   CPU.4V.16G, FIN-01, Ubuntu 24.04, 80 GB, ~€1.50/day from the Lake Bandits project (€200
-  credits). Set up by `scripts/server_setup.sh`; runs `docker-compose.yml` (MariaDB now; Flask
-  app and Caddy for public HTTPS later). MariaDB listens on the server's 127.0.0.1 only; people
+  credits). Set up by `scripts/server_setup.sh`; runs `docker-compose.yml` (MariaDB); the app
+  runs beside it under gunicorn in tmux; Caddy for public HTTPS is still to do. MariaDB listens on the server's 127.0.0.1 only; people
   reach it by SSH tunnel (`ssh -N -L 3307:127.0.0.1:3306 root@<server>`, see `SERVER.md`), each
   with their own login (`triet` read-write, `hung` read-only). The repo is private, so the
   server's copy came from a git bundle; deploy later = update its copy, `docker compose up -d
   --build`. Embedding runs on Modal (`scripts/modal_embed.py`); questions are embedded on the
   CPU of whatever machine runs the app. Local Docker MariaDB copies still work for development.
   **Delete (not shut down) the instance after the event**; shut-down instances still bill.
-- Branches: `planning` = integration (shared files and docs); A works on `a-data-time` (backend),
-  B on `frontend` (pages, see `docs/frontend.md` there), merged into `planning` by PR; `main` gets
-  `planning` at Phase checkpoints. `b-search-app` holds B's earlier plans (graph plan, roadmap).
+- Branches: `main` has everything merged (as of 2026-11-14 evening). New work goes on a feature
+  branch off `main`, merged by PR (into `main`, and `planning` kept in step); B's pages on
+  `frontend` (guide `docs/frontend.md`). `b-search-app` holds B's earlier plans (graph plan,
+  roadmap, `SERVER.md`); `translate` is a removed experiment (Claude translation: too costly).
   Create `.venv` first (`pip install -r requirements.txt`); data under `data/` (never committed).
 
 ## Phases (tasks with acceptance criteria in `tasks/plan.md`)
 Split between two people (revised again 2026-11-14): **A = all backend** (data, search, answers,
 time-aware answers, history, graph data, L at scale), **B = all frontend** (every page, the look,
 demo polish). The JSON API is the contract between them: `docs/frontend.md` (on `frontend`).
-1. Get running: MariaDB on D:, shared over Tailscale; M loaded (overnight); paragraphs built,
-   embedded on a GPU and loaded; S vectors loaded.
-2. The base: cited answers (vector, then hybrid; beat the starter's 76% top-5), time views
-   (article as of a date, timeline with reverts), History button joining them.
-3. The highlight through time (**OPEN**, planned after Phase 2).
-4. Scale numbers on L, polish, demo rehearsal (**OPEN**).
+1. Get running (done): M loaded, passages built, embedded on Modal and loaded, S vectors loaded.
+2. The base (done): cited answers (hybrid, 92% top-5), time views (article as of a date, timeline
+   with reverts), History button joining them.
+3. The highlight (built): then-vs-now answers; cross-language gaps (`/compare/<page_id>`, "Other
+   Wikipedias add" on answers); graph through time (B's page on `/api/graph`).
+4. Scale numbers on L (load running), public hosting, polish, demo rehearsal (**OPEN**).
 
 ## Architecture (docs/architecture.md)
 - Core = cited Q&A + article summaries. Retrieval (decided): hybrid, paragraph vectors plus
@@ -109,9 +113,13 @@ demo polish). The JSON API is the contract between them: `docs/frontend.md` (on 
   `text_hash`, VECTOR(1024) + index), `article_vector` (shipped S vectors), `revert_event`
   (one row per revert). Definitions: `schema.sql`.
 - Time side (decided): two core views, article as of a date and an edit timeline with reverts.
-  Reverts are found once after loading and stored in `revert_event`. The Q&A answers from the
-  newest text; `/ask` takes an optional `as_of` that is unused for now. Each cited source has a
-  History button to the timeline. Yearly partitions on `article` stay.
+  Reverts are found once after loading and stored in `revert_event`. A question about how
+  Wikipedia stood on a date (or with `as_of`) goes to the then-vs-now path in the same `/ask`;
+  others are answered from the newest text. Each cited source has a History button to the
+  timeline. Yearly partitions on `article` stay.
+- Tables added on top (none changes the core): `passage_text` + system-versioned
+  `passage_history` + `history_vector` (time), `article_langlink` and `xlang_passage` /
+  `xlang_vector` (cross-language), `l_passage` / `l_vector` (dataset L, same definitions).
 - Keep these three choices: vectors keyed by text hash (old versions can get vectors later);
   every paragraph keeps its source `rev_id` (citations link to `?oldid=`); the full history is
   loaded even though the core reads only the newest revision.
@@ -159,6 +167,15 @@ demo polish). The JSON API is the contract between them: `docs/frontend.md` (on 
 - "Anonymous" changed meaning in 2025 (IP addresses replaced by temporary accounts).
 - Vectors live in plain tables (`passage_vector`, `article_vector`), so we never need a vector
   index on a versioned or partitioned table.
+- A trailing `LIMIT` on the last `UNION ALL` branch limits the whole union (wrap it in a derived
+  table). It silently cut the fusion to one list once; the eval caught it.
+- One writer at a time into a vector index: parallel loaders deadlock or time out (the loader
+  retries). Inserts slow as the graph grows (~740/s at the start, ~65/s past 600k).
+- **Server memory (16 GB):** MariaDB normally runs with a 3 GB buffer pool and a 1–3 GB vector
+  cache; the app's bge-m3 takes ~3–5 GB. Never run a big vector load and the app together: a 7 + 5
+  GB load setting with the app running locked the server up (fixed by stopping the loaders and
+  restarting MariaDB). Both caches resize live (`SET GLOBAL`); `docker compose restart` keeps old
+  settings, `up -d` re-reads `.env`. `COUNT(*)` on a vector table is slow: read loader logs.
 
 ## Project docs
 - `tasks/plan.md`: the shared plan (idea, decisions, ownership, contracts, feature pool, risks).
@@ -167,37 +184,32 @@ demo polish). The JSON API is the contract between them: `docs/frontend.md` (on 
 - `docs/research/wikipedia-problems.md`: problems worth solving, ranked, with sources.
 - `docs/research/edit-wars.md`: edit wars and vandalism, detection methods, 8 feature ideas.
 
-## Current state of this folder (2026-11-14)
-- `.venv` exists (Python 3.13, `mariadb` + `pyarrow`). Datasets M (`data/m/`, 16 Parquet files)
-  and S (`data/s/`) are downloaded, checksums verified. `data/` and `.venv/` are git-ignored.
-  Code so far: `scripts/common.py`, `load_m.py`, `load_s.py`; app skeleton (1.S): `app/main.py`,
-  `db.py`, `embed.py`, stub `ask.py` and `history.py`, `templates/base.html`.
-- MariaDB 12.3.3 runs on this PC in Docker (`docker compose up -d`), data volume on D:, host port
-  **3307** (a MySQL 9.4 Windows service holds 3306; leave it alone). Schema applied, ef_search=80
-  confirmed, login `triet`. **All of M is loaded** (19,742 articles, 862,076 versions, 6.1 GB,
-  11.5 min; `load_m.py --verify 30` all ok). **S vectors loaded** into `article_vector`
-  (29,460 rows, 0.7 min; `load_s.py --verify` ok, search ~1 ms warm). **Passages and vectors
-  loaded** (66,642 each, embedded on Modal in 6.4 min; recall@10 99.4%, ~11–17 ms).
-- **Shared server** (`root@135.181.8.213`, SSH alias `lakebandits` on A's PC) holds the same:
-  all of M, S vectors, 66,642 passages + vectors (recall 99.2%), all verified. Plus
-  `revert_event` (46,015 reverts, Talvisota 328), and A's time pages run there (`app/history.py`).
-  The server's repo copy is updated from a git bundle (the repo is private).
-- **Backend works end to end on the server** (`a-data-time`): hybrid search (`app/search.py`),
-  cited answers via Claude (`app/answer.py`, `app/llm.py`), then-vs-now answers
-  (`app/timeqa.py`) through the same `/ask`, article as-of page + timeline (`app/history.py`).
-  Full history: `passage_history` (593,195 lifetimes), `history_vector` (353,166 vectors).
-  The app runs on the server in tmux `web` (Flask dev server, port 5000, reached by tunnel);
-  Frontend (B) is merged: ask page, graph page; guide `docs/frontend.md`.
+## Current state (2026-11-14 evening)
+- **The shared server is the real database** (`root@135.181.8.213`, SSH alias `lakebandits` on
+  A's PC; MariaDB on its 127.0.0.1:3306, reached by tunnel). It holds all of M (862,076
+  versions), S vectors (29,460), 66,543 passages + vectors (redirect junk removed), `revert_event`
+  (46,015), `passage_history` (593,195 lifetimes) + `history_vector` (353,166),
+  `article_langlink` (10,175), `xlang_passage` / `xlang_vector` (35,829 labelled en/sv
+  paragraphs), and dataset L: `l_passage` (1,545,854) + `l_vector` (loading, see below).
+  A's PC has a local Docker copy of M, S and passages (port 3307; usually off).
+- **The app** (`main`): `/ask` with five-list hybrid search, cited answers (cited sources first,
+  numbered 1, 2, …), then-vs-now answers (two-stage + global time search, word diffs), "Other
+  Wikipedias add" + en/sv pills; `/article/<id>` (as of a date, timeline, reverts);
+  `/compare/<id>` (en/sv vs Finnish); `/graph/<id>` (B's page on `/api/graph`). Runs on the
+  server in tmux `web` via gunicorn: start/restart `bash scripts/restart_app.sh`, view through
+  `ssh -N -L 5000:127.0.0.1:5000 lakebandits` → http://127.0.0.1:5000. The server's repo copy is
+  updated from a git bundle (`git bundle create … --all`, scp, `git fetch` there; repo private).
+- **L load (running 2026-11-14):** `/root/l_pipeline.sh` (one loader, memory guard, then
+  `eval/scale.py` + `eval/evaluate.py --l`); `/root/l_stop_at_1m.sh` stops it after shard 1
+  (~1.06M vectors), measures to `data/l/measure_1m.log`, then resumes overnight (log
+  `data/l/pipeline.log`). Rerunning `bash /root/l_pipeline.sh` resumes (skips loaded rows). Keep
+  the app off the server while it loads. Results go into docs/architecture.md, "Scale: S → M → L".
 - Loading bge-m3 needs ~5 GB free memory; short of it, it fails with misleading errors. The first
-  question after an app restart takes ~13 s (model load); gunicorn warms it at start
-  (`gunicorn.conf.py`); restart with `bash scripts/restart_app.sh` on the server.
-- The 99 `#OHJAUS` redirect-page junk passages were deleted from `passage`, `passage_vector` and
-  `history_vector` on the server (66,543 passages left, all with vectors).
+  question after an app restart takes ~13 s (model load); gunicorn warms it at start.
 - `.env.example` lists every setting; copy to `.env` (git-ignored) and fill in.
-- Next (A): public hosting (gunicorn + Caddy + password, model warm-up); L at scale (Markdown
-  passages, Modal, recall/latency at ~2M); source-health badges; graph data for B's graph page;
-  final round: answer-level eval on new questions, then translate-before-search / reranker /
-  two-stage time search as that eval shows.
+- Next (A): L numbers into the docs; public hosting (Caddy + password); answer-level eval on new
+  questions (also the demo script); translate-before-search for the 2 remaining misses if needed;
+  a small model as judge for the cross-language "partly" label if it goes into the demo.
 
 ## Coding style
 - Use the `ponytail` skill (level full) for every coding task: the smallest code that works,
