@@ -15,6 +15,8 @@ timeout = 120                # a then-vs-now answer can take ~15 s; leave room
 def post_worker_init(worker):
     from app.embed import embed
     from app.graph import link_index
+    from app.translate import translate
     embed(["warm up"])
     link_index()                 # ~3 s: the wiki-link index behind /api/graph
-    worker.log.info("bge-m3 loaded, link index built")
+    translate("Hei.")            # ~8 s, ~300 MB: the Finnish-English model behind /api/translate
+    worker.log.info("bge-m3 loaded, link index built, translation model loaded")

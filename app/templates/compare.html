@@ -36,7 +36,7 @@
   <div class="xl-meter" role="img" aria-label="{{ L.total }} {{ lang }} paragraphs compared with Finnish">
     {% for k in ["covered", "partly", "elsewhere", "lost", "missing"] if L.counts[k] %}<i class="m-{{ k }}" style="flex: {{ L.counts[k] }}"></i>{% endfor %}
   </div>
-  {% for sec in L.sections %}
+  {% for sec in L.sections %}{% set si = loop.index %}
   <details class="xl-row">
     <summary><span class="xl-sec"><b lang="{{ lang }}">{{ sec.heading or "Lead" }}</b><span>{{ why(sec.first) }}</span></span>
       <span class="xl-dots" aria-hidden="true">{% for i in sec["items"] %}<i class="m-{{ i.label }}"></i>{% endfor %}</span>
@@ -45,7 +45,8 @@
     <div class="xl-pair">
       <div><h4><span class="st st-{{ i.label }}">{{ LBL[i.label] }}</span> <a href="{{ i.url }}">{{ "English" if lang == "en" else "Swedish" }} ↗</a></h4><p lang="{{ lang }}">{{ i.text | truncate(420) }}</p></div>
       <div><h4>Closest Finnish · {{ (i.closest_fi.heading or "Lead") if i.closest_fi else "none" }} <span class="xl-d">distance {{ i.distance }}</span></h4>
-        <p lang="fi">{{ (i.closest_fi.text | truncate(420)) if i.closest_fi else "" }}</p></div>
+        {% if i.closest_fi %}<p lang="fi" id="fi-{{ lang }}-{{ si }}-{{ loop.index }}">{{ i.closest_fi.text | truncate(420) }}</p>
+        <button class="linkish tr-btn" type="button" data-target="fi-{{ lang }}-{{ si }}-{{ loop.index }}">Translate</button>{% endif %}</div>
     </div>
     {% endfor %}
   </details>

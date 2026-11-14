@@ -5,6 +5,8 @@ these JSON routes and never touches the database. Contract: docs/frontend.md, "A
     python -m app.answer         # self-check: 3 questions (fi, en, sv), citations validated (~$0.1)
 """
 import re
+import threading
+from datetime import date
 from urllib.parse import quote
 
 from flask import Blueprint, request
@@ -14,8 +16,24 @@ from app.embed import embed
 from app.history import stats
 from app.llm import RefusedError, complete
 from app.search import rank
+from app.translate import guess_lang
+from scripts.common import env
 
 bp = Blueprint("answer", __name__)
+DAILY_LIMIT = int(env().get("ASK_DAILY_LIMIT") or 300)   # model answers per day (~$0.03 each)
+_used, _lock = {"day": None, "n": 0}, threading.Lock()
+
+
+def take_answer():
+    """False once today's DAILY_LIMIT answers are used. ponytail: in memory, so per worker and reset
+    on restart; gunicorn runs one worker. A shared counter in MariaDB if that changes."""
+    with _lock:
+        if _used["day"] != date.today():
+            _used.update(day=date.today(), n=0)
+        if _used["n"] >= DAILY_LIMIT:
+            return False
+        _used["n"] += 1
+        return True
 
 SYSTEM = """You answer questions using only the numbered Wikipedia passages you are given.
 - Answer in the language of the question (Finnish, Swedish or English), even though the passages are Finnish.
@@ -86,6 +104,7 @@ def answer(question, as_of=None):
     renumber(lines, sources)
     cited = [s for s in sources if any(s["n"] in a["cites"] for a in lines)]
     return {"question": question, "kind": "plain", "answer": lines, "sources": sources,
+            "lang": guess_lang(" ".join(a["text"] for a in lines)),
             "xlang": xlang.adds(vector, list({s["page_id"] for s in cited}), [s["passage_id"] for s in cited])}
 
 
@@ -94,6 +113,8 @@ def ask():
     question = (request.values.get("q") or "").strip()
     if not question:
         return {"error": "q is required"}, 400
+    if not take_answer():
+        return {"error": f"The demo's daily limit of {DAILY_LIMIT} answers is used up. Please try again tomorrow."}, 429
     try:
         return answer(question, request.values.get("as_of"))
     except RefusedError as e:
@@ -107,6 +128,9 @@ if __name__ == "__main__":
     assert parse("Talvisota alkoi 1939 [1].\nSe päättyi 1940 [2][9].\nEn tiedä.", 8) == [
         {"text": "Talvisota alkoi 1939.", "cites": [1]}, {"text": "Se päättyi 1940.", "cites": [2]},
         {"text": "En tiedä.", "cites": []}]
+    _used.update(day=date.today(), n=DAILY_LIMIT - 1)
+    assert take_answer() and not take_answer(), "the daily cap should stop at DAILY_LIMIT"
+    _used.update(n=0)
     a, s, d = [{"cites": [3]}, {"cites": [1, 3]}], [{"n": n} for n in (1, 2, 3, 4)], [{"then": 3, "now": 4}]
     renumber(a, s, d)
     assert a == [{"cites": [1]}, {"cites": [2, 1]}] and [x["n"] for x in s] == [1, 2, 3, 4]

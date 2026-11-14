@@ -127,6 +127,7 @@ using only the numbered passages. Passages marked THEN are from the past date; N
 def answer(question, r):
     """A routed time question -> the /ask JSON with kind "then_vs_now" (docs/frontend.md)."""
     from app.answer import deep_url, parse, renumber   # here: answer.py imports this module
+    from app.translate import guess_lang
     from app.history import stats
     from app.llm import complete
     with closing(connect()) as con:
@@ -167,7 +168,8 @@ def answer(question, r):
                 **counts[s["page_id"]]} for s in sources]
     renumber(out, sources, diffs)
     return {"question": question, "kind": "then_vs_now", "as_of": r["as_of"],
-            "compare_to": r["compare_to"], "answer": out, "sources": sources, "diffs": diffs}
+            "compare_to": r["compare_to"], "answer": out, "sources": sources, "diffs": diffs,
+            "lang": guess_lang(" ".join(a["text"] for a in out))}
 
 
 if __name__ == "__main__":

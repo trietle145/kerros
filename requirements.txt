@@ -2,5 +2,6 @@ mariadb
 pyarrow
 flask
 sentence-transformers
+sentencepiece            # tokenizer of the Opus-MT translation models (app/translate.py)
 anthropic
 gunicorn
