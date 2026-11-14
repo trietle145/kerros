@@ -143,16 +143,17 @@ Split between two people: **A = database and history**, **B = paragraphs, vector
 - `docs/research/edit-wars.md`: edit wars and vandalism, detection methods, 8 feature ideas.
 
 ## Current state of this folder (2026-11-14)
-- `.venv` exists (Python 3.13, `mariadb` + `pyarrow`). Dataset M is in `data/m/` (16 Parquet
-  files, checksums verified). `data/` and `.venv/` are git-ignored. Only docs and `schema.sql`
-  are committed; no code exists yet.
+- `.venv` exists (Python 3.13, `mariadb` + `pyarrow`). Datasets M (`data/m/`, 16 Parquet files)
+  and S (`data/s/`) are downloaded, checksums verified. `data/` and `.venv/` are git-ignored.
+  Code so far: `scripts/common.py`, `load_m.py`, `load_s.py`.
 - MariaDB 12.3.3 runs on this PC in Docker (`docker compose up -d`), data volume on D:, host port
   **3307** (a MySQL 9.4 Windows service holds 3306; leave it alone). Schema applied, ef_search=80
   confirmed, login `triet`. **All of M is loaded** (19,742 articles, 862,076 versions, 6.1 GB,
-  11.5 min; `load_m.py --verify 30` all ok). The Verda machine with
+  11.5 min; `load_m.py --verify 30` all ok). **S vectors loaded** into `article_vector`
+  (29,460 rows, 0.7 min; `load_s.py --verify` ok, search ~1 ms warm). The Verda machine with
   `docker-compose.yml` stays the plan for an always-on shared host.
 - `.env.example` lists every setting; copy to `.env` (git-ignored) and fill in.
-- Next: S vectors (1.B3/1.B5), paragraphs (1.B1), revert detection (2.A1).
+- Next: paragraphs (1.B1), revert detection (2.A1).
 
 ## Coding style
 - Use the `ponytail` skill (level full) for every coding task: the smallest code that works,

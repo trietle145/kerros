@@ -29,9 +29,7 @@ where editors reverted each other.
 | Highlight | One feature **through time**, added on top of the base. Which one is open (Phase 3). |
 | History data | All of dataset M in one system-versioned `article` table with real timestamps. |
 | Search data | Passages from M's newest version of each article, cleaned to plain text, one bge-m3 vector each (~67k). |
-| Passage unit | One section (lead included); sections over ~300 words split at paragraphs; no merging across sections, no overlap; reference/link sections skipped. Embedding input `title 
- heading 
- text`. Details: `docs/architecture.md`, "Chunking, embedding and keyword search". |
+| Passage unit | One section (lead included); sections over ~300 words split at paragraphs; no merging across sections, no overlap; reference/link sections skipped. Embedding input `title \n heading \n text`. Details: `docs/architecture.md`, "Chunking, embedding and keyword search". |
 | Retrieval | Hybrid: vectors + `FULLTEXT` in boolean mode with Finnish prefix terms (`Kekko*`), fused by RRF (k = 60, top 50 per side). Built vector-only first. |
 | Vector index | Fixed, recommended by MariaDB: `M=16 DISTANCE=cosine` on every vector index, `SET mhnsw_ef_search = 80` on every search connection. Defaults found only 79% of the true top 10. |
 | Answer model | Claude API ($20 per person) or Gemini, read from `.env`. |
@@ -47,7 +45,7 @@ exact text that is embedded. Everything else can be rebuilt from the Parquet fil
 | Set | On disk | Contents | Use |
 | --- | --- | --- | --- |
 | M | Yes, `data/m/` (16 Parquet files, checksums verified) | Every version of 19,742 fi articles, raw wikitext, real timestamps, no vectors | All of it → `article`. Newest version → paragraphs → our vectors. |
-| S | Not yet | Current fi/sv/en articles (19,285 / 4,921 / 5,254), one shipped bge-m3 vector per article | Shipped vectors → `article_vector` |
+| S | Yes, `data/s/` (checksums verified) | Current fi/sv/en articles (19,285 / 4,921 / 5,254), one shipped bge-m3 vector per article | Shipped vectors → `article_vector` |
 | L | Not yet | All 568,416 fi articles, current only, no vectors | Scale numbers only (Phase 4) |
 
 Source: https://github.com/MariaDB/mariadb-wikipedia-datasets (releases `*-2026-10`). `data/` is
@@ -97,16 +95,14 @@ halves can be built in parallel.
 
 **Acceptance criteria:**
 - [ ] `data/passages.parquet` columns: `page_id, rev_id, title, position, heading, text, text_hash`
-      (`text_hash` = SHA-256 of the embedding input `title 
- heading 
- text`, 32 bytes).
+      (`text_hash` = SHA-256 of the embedding input `title \n heading \n text`, 32 bytes).
 - [ ] `data/passage_vectors.parquet` columns: `text_hash, model, embedding` (1024 float32, normalised).
 - [ ] `.env.example` (already committed) has every key both people need.
 
 **Verification:** both people have read and agreed; `.env` is git-ignored.
 **Dependencies:** none. **Files:** `.env.example`. **Scope:** XS.
 
-### Task 1.A1: shared MariaDB on a cloud machine
+### Task 1.A1: shared MariaDB on a cloud machine (done on the fallback: A's PC, MariaDB 12.3.3, port 3307)
 
 **Description:** Rent one machine on Verda (CPU-only if offered; ≥ 8 GB RAM, ≥ 60 GB disk),
 install Docker, clone the repo, fill in `.env` and run `docker compose up -d`. The compose file
@@ -116,9 +112,9 @@ Download datasets M and S from GitHub straight onto the machine into `data/`.
 disk image moved to D: (C: has 2.9 GB free).
 
 **Acceptance criteria:**
-- [ ] `SELECT VERSION()` returns 11.7 or later.
-- [ ] `SHOW TABLES` lists the five tables from `schema.sql`.
-- [ ] M and S are on the machine with checksums verified.
+- [x] `SELECT VERSION()` returns 11.7 or later.
+- [x] `SHOW TABLES` lists the five tables from `schema.sql`.
+- [x] M and S are on the machine with checksums verified.
 
 **Verification:** `SELECT VEC_DISTANCE_COSINE(VEC_FromText('[1,0]'), VEC_FromText('[0,1]'));` returns 1.
 **Dependencies:** none. **Files:** `docker-compose.yml`, `.env.example` (both exist). **Scope:** S.
@@ -143,10 +139,14 @@ against the public IP times out.
 applied by the container in 1.A1).
 
 **Acceptance criteria:**
-- [ ] `SELECT @@mhnsw_ef_search` returns 80.
-- [ ] With 3 fake rows, a vector search (subquery + `ORDER BY VEC_DISTANCE_COSINE ... LIMIT`) and a
-      `FULLTEXT` search each return rows.
-- [ ] Finnish word endings: noted whether `MATCH ... AGAINST('Kekkonen')` finds a row containing "Kekkosen".
+- [x] `SELECT @@mhnsw_ef_search` returns 80.
+- [x] With 3 fake rows, a vector search (subquery + `ORDER BY VEC_DISTANCE_COSINE ... LIMIT`) and a
+      `FULLTEXT` search each return rows. (Vector search tested on the real S vectors instead:
+      index used, ~1 ms warm. FULLTEXT tested by hand.)
+- [x] Finnish word endings: noted whether `MATCH ... AGAINST('Kekkonen')` finds a row containing "Kekkosen".
+      (It does not; `Kekko*` in boolean mode does. See `docs/architecture.md`.)
+
+`scripts/smoke.sql` was not written; the checks above were run by hand.
 
 **Verification:** a `scripts/smoke.sql` that runs clean, its output pasted in the PR.
 **Dependencies:** 1.A1. **Files:** `scripts/smoke.sql`. **Scope:** S.
@@ -158,10 +158,10 @@ into `article` with its real timestamp, based on the SVT starter's `load.py`. Re
 already loaded) and takes `--limit N`. Runs on the database machine itself, where M was downloaded.
 
 **Acceptance criteria:**
-- [ ] `--limit 20` loads 20 articles with all their versions.
-- [ ] `FOR SYSTEM_TIME AS OF` an old date returns the version that was live then (compare `rev_id`
+- [x] `--limit 20` loads 20 articles with all their versions.
+- [x] `FOR SYSTEM_TIME AS OF` an old date returns the version that was live then (compare `rev_id`
       with the Parquet file).
-- [ ] Re-running does not duplicate rows.
+- [x] Re-running does not duplicate rows.
 
 **Verification:** row counts per page match the Parquet counts; one AS OF check passes; rows per
 second logged, so the full-load time can be estimated.
@@ -173,8 +173,8 @@ second logged, so the full-load time can be estimated.
 `tmux` or `nohup`, so it survives a closed SSH session), logging to `data/load_m.log`.
 
 **Acceptance criteria:**
-- [ ] `SELECT COUNT(*) FROM article FOR SYSTEM_TIME ALL` = 862,076.
-- [ ] `SELECT COUNT(*) FROM article` = 19,742.
+- [x] `SELECT COUNT(*) FROM article FOR SYSTEM_TIME ALL` = 862,076.
+- [x] `SELECT COUNT(*) FROM article` = 19,742.
 
 **Verification:** both counts; an AS OF query on *Talvisota* takes well under a second.
 **Dependencies:** 1.A4. **Files:** none. **Scope:** XS (runs all night).
@@ -200,9 +200,7 @@ already has one on D:, the database machine has another.
 ### Task 1.B2: embed the passages
 
 **Description:** `scripts/embed_passages.py` embeds each distinct passage with bge-m3 (input
-= title 
- heading 
- text, max 1,024 tokens, normalised) and writes `data/passage_vectors.parquet`. Runs on a GPU
+= title \n heading \n text, max 1,024 tokens, normalised) and writes `data/passage_vectors.parquet`. Runs on a GPU
 for a few minutes (~67k passages; 1–3 hours on a CPU also works): Modal (per-second billing, $100 per person) or a Verda GPU machine; Colab or
 Kaggle as a free fallback. Time it on 20 articles first.
 
@@ -215,15 +213,15 @@ Kaggle as a free fallback. Time it on 20 articles first.
 **Verification:** row count = distinct hash count from 1.B1; the five-question check printed.
 **Dependencies:** 1.B1. **Files:** `scripts/embed_passages.py`, `app/embed.py` (question side, same settings). **Scope:** M.
 
-### Task 1.B3: download S, write its loader
+### Task 1.B3: download S, write its loader (done)
 
 **Description:** Download S from the datasets repo into `data/s/` and check its checksums. Write
 `scripts/load_s.py` (from the RAG starter's `load.py`) that loads the shipped article vectors into
 `article_vector`.
 
 **Acceptance criteria:**
-- [ ] S downloaded, checksums verified.
-- [ ] Loader written and tested against a local file read (database insert happens in 1.B5).
+- [x] S downloaded, checksums verified.
+- [x] Loader written and tested against a local file read (database insert happens in 1.B5).
 
 **Verification:** checksum output; loader dry run prints row counts per language.
 **Dependencies:** none. **Files:** `scripts/load_s.py`. **Scope:** S.
@@ -242,13 +240,15 @@ Kaggle as a free fallback. Time it on 20 articles first.
 **Verification:** counts, the join check, and the recall output in the PR.
 **Dependencies:** 1.A3, 1.B2. **Files:** `scripts/load_vectors.py`. **Scope:** S.
 
-### Task 1.B5: load S vectors
+### Task 1.B5: load S vectors (done: 0.7 min, ~700 vectors/s with the index built as rows go in)
 
 **Acceptance criteria:**
-- [ ] `article_vector` has 29,460 rows (19,285 fi + 4,921 sv + 5,254 en).
-- [ ] Nearest articles to *Talvisota*'s vector are about the Winter War.
+- [x] `article_vector` has 29,460 rows (19,285 fi + 4,921 sv + 5,254 en).
+- [x] Nearest articles to *Talvisota*'s vector are about the Winter War (Talvisodan tausta,
+      Jatkosota, Välirauha, Moskovan rauhansopimus).
 
-**Verification:** count and the neighbour query.
+**Verification:** `python scripts/load_s.py --verify` (count and the neighbour query). Log:
+`data/load_s.log`.
 **Dependencies:** 1.A3, 1.B3. **Files:** none. **Scope:** XS.
 
 ### Checkpoint: Phase 1 done

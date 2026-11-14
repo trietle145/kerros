@@ -4,7 +4,8 @@ Junction hackathon, MariaDB challenge. A web app that answers questions about Fi
 from Wikipedia, cites the paragraph behind every sentence, and shows how that text changed over
 time. Built on MariaDB vector search (RAG) and system-versioned tables (SVT).
 
-Status: planning. Docs and `schema.sql` only; no code yet. Start at Phase 1 in `tasks/plan.md`.
+Status: Phase 1. Dataset M (full history) and the S article vectors are loaded; loaders in
+`scripts/`. Progress is ticked in `tasks/plan.md`.
 
 ## Read first
 
