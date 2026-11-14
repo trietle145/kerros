@@ -1,6 +1,6 @@
 """Retrieval (owner: A, backend): question -> the passages that answer it.
 
-Hybrid: four ranked lists fused by reciprocal rank fusion (RRF, k = 60) in one SQL statement
+Hybrid: five ranked lists fused by reciprocal rank fusion (RRF, k = 60) in one SQL statement
 (docs/architecture.md, "Chunking, embedding and keyword search"):
   vec  nearest passage vectors                          (meaning, cross-language)
   ft   FULLTEXT in boolean mode with Finnish prefix terms (names, years, rare words)
@@ -8,6 +8,8 @@ Hybrid: four ranked lists fused by reciprocal rank fusion (RRF, k = 60) in one S
   xl   nearest English/Swedish article vectors (dataset S), mapped to their Finnish article by
        Wikidata id (article_langlink), each contributing that article's lead passage: an English
        question meets an English article first, then crosses over
+  name en/sv article titles (two words or more) written verbatim in the question, longest first;
+       catches long articles whose whole-article vector is too diluted to rank ("Finnish Civil War")
 Each vector search stays in its own subquery so MariaDB uses the vector index. No FULL OUTER JOIN
 in MariaDB, so the lists are combined with UNION ALL + GROUP BY.
 
@@ -43,8 +45,11 @@ LISTS = {
                    FROM article_vector WHERE lang IN ('en', 'sv') ORDER BY d LIMIT 30) v
              JOIN article_langlink l ON l.lang = v.lang AND l.page_id = v.page_id
              JOIN passage p ON p.page_id = l.fi_page_id AND p.position = 0""",
+    "name": """SELECT p.passage_id, ROW_NUMBER() OVER (ORDER BY CHAR_LENGTH(l.title) DESC) AS r
+               FROM article_langlink l JOIN passage p ON p.page_id = l.fi_page_id AND p.position = 0
+               WHERE l.title LIKE '% %' AND INSTR(?, l.title) > 0""",  # no LIMIT here: a trailing LIMIT cuts the whole UNION
 }
-ALL = ("vec", "ft", "art", "xl")
+ALL = ("vec", "ft", "art", "xl", "name")
 
 
 def fulltext_terms(question, names_only=False):
@@ -74,7 +79,7 @@ def rank(vector, question="", k=8, per_article=2, lists=ALL, names_only=True):
         if name == "ft" and not terms:
             continue
         parts.append(LISTS[name].format(n=CANDIDATES))
-        params += [terms, terms] if name == "ft" else [vector]
+        params += {"ft": [terms, terms], "name": [question]}.get(name, [vector])
     sql = f"""SELECT p.passage_id, p.page_id, p.rev_id, p.title, p.heading, p.text, x.score
               FROM (SELECT passage_id, SUM(1 / ({RRF_K} + r)) AS score
                     FROM ({" UNION ALL ".join(parts)}) u GROUP BY passage_id) x

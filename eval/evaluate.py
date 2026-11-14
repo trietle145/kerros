@@ -66,7 +66,8 @@ def main():
              ("vec + ft (names)", passages(("vec", "ft"))), ("vec + art", passages(("vec", "art"))),
              ("all, ft all words", passages(("vec", "ft", "art"), False)),
              ("vec + ft + art (before xl)", passages(("vec", "ft", "art"))),
-             ("passages (ours)", passages(("vec", "ft", "art", "xl"))))
+             ("vec + ft + art + xl", passages(("vec", "ft", "art", "xl"))),
+             ("passages (ours)", passages(("vec", "ft", "art", "xl", "name"))))
     for name, fn in modes:
         ranks, ms = [], []
         for q, v in zip(questions, vectors):
