@@ -215,6 +215,8 @@ footer a { color: inherit; }
 .clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 .src .more { margin-top: .2rem; }
 .src-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .6rem; margin-top: .65rem; color: var(--muted); font-size: .8125rem; }
+.src-translation { margin-top: .65rem; padding: .55rem .75rem; border-left: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); border-radius: 0 calc(var(--radius) / 2) calc(var(--radius) / 2) 0; font-size: .9375rem; line-height: 1.55; white-space: pre-line; }
+.src-translation small { display: block; margin-top: .4rem; color: var(--muted); font-size: .75rem; white-space: normal; }
 .src-actions { display: flex; flex-wrap: wrap; gap: .15rem; margin: .55rem -.5rem 0; }
 
 /* skeleton: the same boxes as the answer, a light sweep across each line */

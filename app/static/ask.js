@@ -24,7 +24,49 @@ const sample = r => r?._source !== "fixture" ? "" : `<span class="pill pill-warn
   ? "The live service did not answer (" + esc(r._error) + "); this is a saved example." : "A saved example (mock mode)."}">sample data${r._error ? " · " + esc(r._error) : ""}</span>`;
 const GRAPH_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 7l6 10M12 17l7-9M6 7l13 1"/><circle cx="6" cy="7" r="2.4" fill="currentColor"/><circle cx="19" cy="8" r="2" fill="currentColor"/><circle cx="12" cy="17" r="2.2" fill="currentColor"/></svg>`;
 
-let run = 0, saved = null, stepTimers = [];
+let run = 0, saved = null, stepTimers = [], shownSources = new Map();   // shownSources: n -> source on screen
+
+// ---- translation: the browser's on-device translator when it has one (free, private), else the
+// backend (Claude). Always labelled as a machine translation; the cited original stays the Finnish text.
+const translations = new Map();                        // passage text -> {text, engine}
+async function translateText(text) {
+  if (translations.has(text)) return translations.get(text);
+  let out = null;
+  if ("Translator" in self) {
+    try {
+      const opts = { sourceLanguage: "fi", targetLanguage: "en" };
+      if (await Translator.availability(opts) !== "unavailable")
+        out = { text: await (await Translator.create(opts)).translate(text), engine: "your browser, on-device" };
+    } catch (e) { console.warn("on-device translation failed, using the server:", e); }
+  }
+  if (!out) {
+    const r = await fetch("/api/translate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    const d = await r.json().catch(() => null);
+    if (!r.ok || !d?.translation) throw new Error(d?.error || `HTTP ${r.status}`);
+    out = { text: d.translation, engine: "Claude" };
+  }
+  translations.set(text, out);
+  return out;
+}
+
+async function toggleTranslation(btn) {
+  const s = shownSources.get(+btn.dataset.translate), box = $(btn.getAttribute("aria-controls"));
+  if (!s || !box) return;
+  if (btn.getAttribute("aria-expanded") === "true") {   // showing: hide it again
+    box.hidden = true; btn.setAttribute("aria-expanded", "false"); btn.textContent = "Translate";
+    return;
+  }
+  btn.disabled = true; btn.textContent = "Translating…";
+  try {
+    const t = await translateText(s.text);
+    box.replaceChildren(Object.assign(document.createElement("p"), { textContent: t.text }),
+      Object.assign(document.createElement("small"), { textContent: `Machine translation (${t.engine}). The cited source is the Finnish text above.` }));
+    box.hidden = false; btn.setAttribute("aria-expanded", "true"); btn.textContent = "Hide translation";
+  } catch (e) {
+    box.replaceChildren(Object.assign(document.createElement("small"), { textContent: "Translation failed: " + e.message }));
+    box.hidden = false; btn.textContent = "Translate";
+  } finally { btn.disabled = false; }
+}
 
 function setState(next) {
   const change = () => { root.dataset.state = next; };
@@ -54,6 +96,7 @@ function showLoading() {
 function render(res, q, animate) {
   stepTimers.forEach(clearTimeout);
   const tvn = res.kind === "then_vs_now", srcs = res.sources || [], byN = new Map(srcs.map(s => [s.n, s]));
+  shownSources = byN;
   const year = (res.as_of || "").slice(0, 4);
   let i = 0;                                            // order of arrival (the stagger)
 
@@ -104,10 +147,14 @@ function render(res, q, animate) {
         (h.live_since ? `<span class="pill" title="This passage has stood in the article since ${esc(h.live_since)}">live since ${esc(h.live_since.slice(0, 4))}</span>` : "") +
         (h.rewrites != null ? `<span class="pill num">${num(h.rewrites)} rewrite${h.rewrites === 1 ? "" : "s"}</span>` : "") +
         (h.contested ? `<span class="pill pill-warn" title="This passage is often reverted">contested</span>` : "")}</p>
+      <div class="src-translation" id="${key}-en" lang="en" hidden></div>
       <div class="src-actions">
         <a class="btn btn-quiet" href="${safeUrl(s.deep_url || s.url)}" target="_blank" rel="noopener" title="The exact version this text came from, scrolled to this passage">Open on Wikipedia ↗</a>
         <a class="btn btn-quiet" href="${history}" data-go="${key}">History</a>
         <a class="btn btn-quiet" href="${graphUrl(s.page_id, q)}" data-go="${key}">Graph</a>
+        <button class="btn btn-quiet" type="button" data-translate="${s.n}" aria-controls="${key}-en" aria-expanded="false">Translate</button>
+        ${s.other_langs?.en ? `<a class="btn btn-quiet" href="${safeUrl(s.other_langs.en.url)}" target="_blank" rel="noopener" lang="en"
+            title="The same topic on English Wikipedia: ${esc(s.other_langs.en.title)} (a different text, not a translation)">English Wikipedia ↗</a>` : ""}
       </div></article>`;
   };
   const group = (label, list, from) => !list.length ? "" :
@@ -211,7 +258,9 @@ results.addEventListener("focusin", e => highlight(cited(e.target)));
 results.addEventListener("focusout", () => highlight([]));
 results.addEventListener("click", e => {
   const cite = e.target.closest(".cite"), more = e.target.closest(".more"), go = e.target.closest("[data-go]");
-  if (cite) {
+  const tr = e.target.closest("[data-translate]");
+  if (tr) toggleTranslation(tr);
+  else if (cite) {
     const card = $("src-" + cite.dataset.n);
     card.scrollIntoView({ block: "nearest", behavior: reduced() ? "auto" : "smooth" });
     card.focus({ preventScroll: true });               // the focused card keeps its ring; Tab goes on to its links

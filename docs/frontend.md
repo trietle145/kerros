@@ -176,6 +176,18 @@ Live. `404` if the article didn't exist on the date, `400` for a bad date.
 Live. `{"page_id": 1256, "months": [{"month": "2003-10", "edits": 2, "reverts": 0, "cleanup": 0}, …]}`
 (only months with edits; `cleanup` = reverts that undid an anonymous edit).
 
+### English: `other_langs` and `POST /api/translate`
+
+- **`other_langs`** on every source (plain and then-vs-now) and every graph node:
+  `{"en": {"title", "url"}, "sv": {...}}` with only the languages that exist (often `{}`). The same
+  topic on English/Swedish Wikipedia, matched by Wikidata id (dataset S: 5,254 en, 4,921 sv). It is a
+  **different text**, not a translation; link to it as "English Wikipedia".
+- **`POST /api/translate`** `{"text": "<Finnish passage>"}` → `{"translation": "...", "engine":
+  "claude"}`; `400` empty, `413` over 4,000 characters, `422` declined, `500` failed. The fallback
+  behind the source cards' Translate button: `ask.js` first tries the browser's on-device
+  Translator API (free, private; recent Chrome), then this route (~$0.002 per passage, cached).
+  Always label the result as a machine translation; the citation stays the Finnish original.
+
 ### `GET /api/related?q=<question>` (live)
 
 `{"articles": [{"page_id", "title", "snippet", "score"}]}`, up to 10: the hybrid search's passages

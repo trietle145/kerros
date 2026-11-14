@@ -115,6 +115,8 @@ export function createPanel(root, { data, g, q, api, graphUrl, select }) {
       absent,
       text && lead, more, credit,
       el("div.gp-actions", null, open, history,
+        /^https:\/\//.test(n.other_langs?.en?.url || "") && el("a.g-btn", { href: n.other_langs.en.url, target: "_blank",
+          rel: "noopener", lang: "en", title: `The same topic on English Wikipedia: ${n.other_langs.en.title}` }, "English Wikipedia ↗"),
         n.id !== data.main && el("a.g-btn", { href: graphUrl(n.id) }, "Make this the main node")));
     // the "Show more" button only when the clamped lead really overflows (needs layout first)
     requestAnimationFrame(() => { more.hidden = lead.scrollHeight <= lead.clientHeight + 2; });
