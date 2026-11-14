@@ -97,7 +97,7 @@ function render(res, q, animate) {
     return `<article class="src" id="${key}" data-n="${s.n}"${s.era ? ` data-era="${esc(s.era)}"` : ""} tabindex="-1" style="--i:${j}">
       <header><span class="n" aria-hidden="true">${s.n}</span><div>
         <h3 lang="fi" data-morph="${key}">${esc(s.title)}</h3>
-        <p class="src-heading">${esc(s.heading || "Lead")}</p></div></header>
+        <p class="src-heading">${s.era ? `<span class="pill${s.era === "then" ? " pill-warn" : ""}">${s.era === "then" ? `Then · ${esc(day(res.as_of))}` : "Now"}</span> ` : ""}${esc(s.heading || "Lead")}</p></div></header>
       <p class="src-text clamp" id="${key}-text" lang="fi">${esc(s.text)}</p>
       <button class="linkish more" type="button" aria-expanded="false" aria-controls="${key}-text" hidden>Show more</button>
       <p class="src-meta">${s.edits != null ? `<span class="num">${num(s.edits)} edits · ${num(s.reverts || 0)} reverts</span>` : ""}${!h ? "" :
@@ -112,10 +112,11 @@ function render(res, q, animate) {
   };
   const group = (label, list, from) => !list.length ? "" :
     `<h2 class="kicker era" style="--i:${from}">${label}</h2>` + list.map((s, j) => card(s, from + j)).join("");
-  const then = tvn ? srcs.filter(s => s.era === "then") : [], rest = srcs.filter(s => !then.includes(s));
-  sourcesBox.innerHTML = tvn
-    ? group(["Then", day(res.as_of)].filter(Boolean).join(" · "), then, 0) + group(["Now", day(res.compare_to)].filter(Boolean).join(" · "), rest, then.length)
-    : group("Sources", rest, 0);
+  // the passages the answer cites first (then and now together), the rest below as related reading
+  const used = new Set(answer.flatMap(a => a.cites || []));
+  const cited = srcs.filter(s => used.has(s.n)), rest = srcs.filter(s => !used.has(s.n));
+  sourcesBox.innerHTML = group("Cited in the answer", cited, 0) +
+    group(cited.length ? "Related passages, not cited" : "Sources", rest, cited.length);
 
   statusBox.innerHTML = `<span class="kicker">Answer</span>${tvn ? `<span class="pill pill-accent">then vs now</span>` : ""}
     <span>${srcs.length} source${srcs.length === 1 ? "" : "s"}, each linked to its exact version</span>${sample(res)}`;
