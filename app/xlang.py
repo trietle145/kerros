@@ -18,6 +18,7 @@ from app.db import connect
 bp = Blueprint("xlang", __name__)
 LABELS = ("covered", "partly", "elsewhere", "lost", "missing")
 SLACK = 0.02     # ponytail: an en/sv paragraph may sit this much farther from the question than the farthest cited Finnish passage
+ADD_MAX = 0.42   # and never farther than this: on 24 test questions every useful item was <= 0.42, the noise >= 0.44
 
 
 def _rows(sql, params=()):
@@ -58,11 +59,15 @@ def adds(vector, page_ids, passage_ids, k=3):
                 (vector, *passage_ids))[0][0]
     rows = _rows("SELECT x.lang, x.title, x.heading, x.text, x.fi_page_id, VEC_DISTANCE_COSINE(v.embedding, ?) d "
                  "FROM xlang_passage x JOIN xlang_vector v USING (text_hash) "
-                 "WHERE x.fi_page_id IN (%s) AND x.label = 'missing' HAVING d <= ? ORDER BY d LIMIT %d"
-                 % (",".join("?" * len(page_ids)), k), (vector, *page_ids, bar + SLACK))
-    return [{"lang": lang, "title": title, "heading": heading, "text": text, "fi_page_id": fi,
-             "url": section_url(lang, title, heading), "distance": round(d, 3)}
-            for lang, title, heading, text, fi, d in rows]
+                 "WHERE x.fi_page_id IN (%s) AND x.label = 'missing' HAVING d <= ? ORDER BY d LIMIT 12"
+                 % ",".join("?" * len(page_ids)), (vector, *page_ids, min(bar + SLACK, ADD_MAX)))
+    out, seen = [], set()
+    for lang, title, heading, text, fi, d in rows:          # one paragraph per section
+        if (lang, title, heading) not in seen and len(out) < k:
+            seen.add((lang, title, heading))
+            out.append({"lang": lang, "title": title, "heading": heading, "text": text, "fi_page_id": fi,
+                        "url": section_url(lang, title, heading), "distance": round(d, 3)})
+    return out
 
 
 def coverage(page_id):
