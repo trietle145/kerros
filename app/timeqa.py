@@ -19,7 +19,9 @@ CUES = {"wikipedia", "wikipedian", "wikipediassa", "sanoi", "kertoi", "kirjoitti
         "skrev", "ändrats", "ändrades"}
 DROP = CUES | {"vuonna", "vuodesta", "jälkeen", "sitten", "nyt", "nykyään", "since", "now", "today",
                "then", "sedan", "nu", "år", "in", "ja", "mitä", "what", "how", "has", "vad", "och",
-               "on", "and", "it", "about", "om", "siitä", "asiasta"}
+               "on", "and", "it", "about", "om", "siitä", "asiasta", "the", "did", "of", "article",
+               "artikkeli", "artikkelia", "artikkelin", "artikkelissa", "page", "sivu", "kuvasi",
+               "kuvaili", "describe", "described", "beskrev", "artikeln"}
 YEAR = re.compile(r"\b(20[0-2]\d)\b")
 ISO = re.compile(r"\b(20[0-2]\d)-(\d\d)-(\d\d)\b")
 FI_DATE = re.compile(r"\b(\d{1,2})\.(\d{1,2})\.(20[0-2]\d)\b")
@@ -33,6 +35,12 @@ FROM (SELECT text_hash, VEC_DISTANCE_COSINE(embedding, ?) AS d
 JOIN passage_history FOR SYSTEM_TIME AS OF TIMESTAMP ? h USING (text_hash)
 JOIN passage_text t USING (text_hash)
 ORDER BY v.d"""
+ARTICLES = 5             # stage one: today's top articles for the topic
+PAGES_SQL = """
+SELECT t.text_hash, t.page_id, t.title, t.heading, t.text, VEC_DISTANCE_COSINE(v.embedding, ?) AS d
+FROM passage_history FOR SYSTEM_TIME AS OF TIMESTAMP ? h
+JOIN history_vector v USING (text_hash) JOIN passage_text t USING (text_hash)
+WHERE h.page_id IN ({marks}) ORDER BY d LIMIT 4"""
 NOW_SQL = """
 SELECT p.passage_id, p.page_id, p.rev_id, p.title, p.heading, p.text,
        VEC_DISTANCE_COSINE(v.embedding, (SELECT embedding FROM history_vector WHERE text_hash = ?)) AS d
@@ -82,10 +90,21 @@ def diff(old, new):
 
 
 def then_passages(cur, topic, as_of, k=6):
-    """Passages live on as_of, nearest to the topic; one per (article, section)."""
-    cur.execute(THEN_SQL.format(n=CANDIDATES), (embed([topic])[0], as_of + " 23:59:59"))
+    """Passages live on as_of, nearest to the topic; one per (article, section). Two stages first:
+    today's hybrid search (names, cross-language) picks the articles, then their passages live on
+    the date are ranked by exact distance. The global nearest-history search fills the rest, so
+    text from articles that have since lost the topic can still turn up."""
+    from app.search import rank
+    vector = embed([topic])[0]
+    at = as_of + " 23:59:59"
+    pages = list(dict.fromkeys(h["page_id"] for h in rank(vector, topic, 30, None)))[:ARTICLES]
+    rows = []
+    if pages:
+        cur.execute(PAGES_SQL.format(marks=",".join("?" * len(pages))), (vector, at, *pages))
+        rows = cur.fetchall()
+    cur.execute(THEN_SQL.format(n=CANDIDATES), (vector, at))
     out, seen = [], set()
-    for text_hash, page_id, title, heading, text, d in cur.fetchall():
+    for text_hash, page_id, title, heading, text, d in rows + cur.fetchall():
         if (page_id, heading) in seen:
             continue
         seen.add((page_id, heading))
@@ -107,7 +126,7 @@ using only the numbered passages. Passages marked THEN are from the past date; N
 
 def answer(question, r):
     """A routed time question -> the /ask JSON with kind "then_vs_now" (docs/frontend.md)."""
-    from app.answer import deep_url, parse   # here, not at the top: answer.py imports this module
+    from app.answer import deep_url, parse, renumber   # here: answer.py imports this module
     from app.history import stats
     from app.llm import complete
     with closing(connect()) as con:
@@ -142,12 +161,13 @@ def answer(question, r):
     text = complete(SYSTEM, f"Past date: {r['as_of']}\n\nPassages:\n\n" + "\n\n".join(lines) +
                     f"\n\nQuestion: {question}") if sources else ""
     counts = stats(list({s["page_id"] for s in sources}))
+    out = parse(text, len(sources)) if sources else [
+        {"text": "No passages from that date were found for this question.", "cites": []}]
+    sources = [{**s, "deep_url": deep_url(s["rev_id"], s["heading"], s["text"]),
+                **counts[s["page_id"]]} for s in sources]
+    renumber(out, sources, diffs)
     return {"question": question, "kind": "then_vs_now", "as_of": r["as_of"],
-            "compare_to": r["compare_to"],
-            "answer": parse(text, len(sources)) if sources else
-            [{"text": "No passages from that date were found for this question.", "cites": []}],
-            "sources": [{**s, "deep_url": deep_url(s["rev_id"], s["heading"], s["text"]),
-                         **counts[s["page_id"]]} for s in sources], "diffs": diffs}
+            "compare_to": r["compare_to"], "answer": out, "sources": sources, "diffs": diffs}
 
 
 if __name__ == "__main__":
@@ -159,6 +179,8 @@ if __name__ == "__main__":
     assert route("Mitä tapahtui vuonna 2008?") is None                    # no cue: an event question
     assert route("What did Wikipedia say about Kekkonen in 2010?")["as_of"] == "2010-07-01"
     assert route("Kekkonen", as_of="2012-03-04")["as_of"] == "2012-03-04"
+    assert route("How has the Wikipedia article on the Finnish Civil War changed since 2007?")[
+        "topic"] == "Finnish Civil War"
     assert route("Mitä Wikipedia kertoi Mainilasta 1.6.2006?")["as_of"] == "2006-06-01"
     d = diff("noin 80 000 punavankia jäi", "76 000 punavankia jäi")
     assert d["ops"] == [["delete", "noin 80"], ["insert", "76"], ["equal", "000 punavankia jäi"]]

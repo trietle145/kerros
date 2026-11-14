@@ -35,6 +35,21 @@ def parse(text, n_sources):
     return out
 
 
+def renumber(answer, sources, diffs=()):
+    """Cited sources first, numbered 1, 2, ... in the order the answer first cites them; the uncited
+    ones follow. Rewrites the numbers in answer cites, sources and then/now diffs in place."""
+    cited = list(dict.fromkeys(c for s in answer for c in s["cites"]))
+    order = cited + [s["n"] for s in sources if s["n"] not in cited]
+    new = {old: i for i, old in enumerate(order, 1)}
+    for s in answer:
+        s["cites"] = [new[c] for c in s["cites"]]
+    for s in sources:
+        s["n"] = new[s["n"]]
+    sources.sort(key=lambda s: s["n"])
+    for d in diffs:
+        d["then"], d["now"] = new[d["then"]], new[d["now"]]
+
+
 def deep_url(rev_id, heading, text):
     """The exact version, scrolled to the passage: #section anchor plus a text fragment
     (:~:text=first 5 words,last 5 words) that browsers highlight. A browser without support, or a
@@ -60,10 +75,12 @@ def answer(question, as_of=None):
                            f"\n{s['text']}" for n, s in enumerate(sources, 1))
     text = complete(SYSTEM, f"Passages:\n\n{numbered}\n\nQuestion: {question}")
     counts = stats(list({s["page_id"] for s in sources}))
-    return {"question": question, "kind": "plain", "answer": parse(text, len(sources)),
-            "sources": [{"n": n, **s, "url": f"https://fi.wikipedia.org/?oldid={s['rev_id']}",
-                         "deep_url": deep_url(s["rev_id"], s["heading"], s["text"]),
-                         **counts[s["page_id"]]} for n, s in enumerate(sources, 1)]}
+    lines = parse(text, len(sources))
+    sources = [{"n": n, **s, "url": f"https://fi.wikipedia.org/?oldid={s['rev_id']}",
+                "deep_url": deep_url(s["rev_id"], s["heading"], s["text"]),
+                **counts[s["page_id"]]} for n, s in enumerate(sources, 1)]
+    renumber(lines, sources)
+    return {"question": question, "kind": "plain", "answer": lines, "sources": sources}
 
 
 @bp.route("/ask", methods=["GET", "POST"])
@@ -84,6 +101,10 @@ if __name__ == "__main__":
     assert parse("Talvisota alkoi 1939 [1].\nSe päättyi 1940 [2][9].\nEn tiedä.", 8) == [
         {"text": "Talvisota alkoi 1939.", "cites": [1]}, {"text": "Se päättyi 1940.", "cites": [2]},
         {"text": "En tiedä.", "cites": []}]
+    a, s, d = [{"cites": [3]}, {"cites": [1, 3]}], [{"n": n} for n in (1, 2, 3, 4)], [{"then": 3, "now": 4}]
+    renumber(a, s, d)
+    assert a == [{"cites": [1]}, {"cites": [2, 1]}] and [x["n"] for x in s] == [1, 2, 3, 4]
+    assert d == [{"then": 1, "now": 4}]
     for q in ("Milloin talvisota alkoi ja miten se päättyi?", "Who was Urho Kekkonen?",
               "Vad hände i Åbo år 1827?"):
         t = time.time()
