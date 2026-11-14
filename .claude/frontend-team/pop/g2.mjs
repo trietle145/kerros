@@ -1,0 +1,10 @@
+import { launch, sleep } from "../eval/cdp.mjs";
+const b = await launch(9348), B = "http://127.0.0.1:5001";
+await b.viewport(1440, 900);
+await b.go(B + "/graph/8295?q=Mainila", 5000);
+await b.clickSel('.gp-path-go'); await sleep(2500);
+console.log("steps:", await b.eval(`document.querySelectorAll('.gp-steps li').length`), "| lesson link:", await b.eval(`document.querySelector('.gp-lesson')?.getAttribute('href')`));
+await b.eval("document.querySelector('.gp-lesson').click()"); await sleep(8000);
+console.log("lesson page:", await b.eval(`location.pathname + ' | ' + document.getElementById('l-title')?.textContent + ' | steps ' + document.querySelectorAll('.step-card').length`));
+console.log("errors:", JSON.stringify(b.log.errors));
+await b.close();

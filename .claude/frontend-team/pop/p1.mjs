@@ -1,0 +1,11 @@
+import { launch, sleep } from "../eval/cdp.mjs";
+const b = await launch(9349), B = "http://127.0.0.1:5001";
+await b.viewport(1440, 900);
+await b.go(B + "/?q=" + encodeURIComponent("Milloin talvisota alkoi?"), 14000);
+console.log("old boxes present:", await b.eval(`!!document.getElementById('sources') || document.querySelectorAll('.src').length`));
+console.log("markers:", await b.eval(`document.querySelectorAll('.cite').length`), "| chips:", await b.eval(`document.querySelectorAll('.src-chip').length`), "| source: ", await b.eval(`document.querySelector('.status')?.innerText.replace(/\s+/g,' ')`));
+await b.clickSel('.cite[data-n="1"]'); await sleep(500);
+console.log("popover:", await b.eval(`JSON.stringify({hidden: document.getElementById('cite-pop').hidden, mode: document.getElementById('cite-pop').dataset.mode, title: document.querySelector('#cite-pop h3')?.textContent, buttons: [...document.querySelectorAll('#cite-pop .src-actions a')].map(a=>a.textContent.trim())})`));
+await b.shot("p1-live");
+console.log("errors:", JSON.stringify(b.log.errors));
+await b.close();

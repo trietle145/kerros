@@ -3,7 +3,9 @@
 //   createGraph(el, {nodes, main, links?}) -> {apply, highlightPath, focus, select, hover, on, resize, destroy}
 // Positions are computed once, synchronously, by the small simulation in layout(), from all nodes
 // and the links of the first apply() (pass today's; or give opts.links). Every node is then pinned
-// and force-graph's own engine is off, so apply() can only show and hide: nothing that stays moves.
+// and force-graph's own engine is off, so apply() can only show and hide: no node leaves its place.
+// Drawn, each node floats a few units around that place and its colour shimmers around its
+// relation's colour (both off with reduced motion; the hovered node holds still to be clicked).
 // All motion is a tween read in the render hooks (a pure function of time, interruptible).
 // Self-check: open the page with ?selftest=1 (console, and data-selftest="ok|fail" on the container).
 
@@ -22,6 +24,17 @@ function at(a, now) {
 const LABEL = 26;                       // longest label in characters; the full title shows on hover and when selected
 const DIST = 120;                       // link length in graph units (= px at zoom 1)
 const FLASH = { added: [220, 640], removed: [300, 420] };   // [hold, fade] ms; a year lasts 800 ms while playing
+const BOB = 4.5;                        // how far a node floats from its place, graph units
+const HUE = 16, LIGHT = 7;              // colour shimmer (degrees, %): small, so the legend's colours still hold
+
+function hsl(hex) {                     // "#rrggbb" -> [h, s, l]
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return [0, 0, 60];
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+  if (!d) return [0, 0, l * 100];
+  const h = mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, d / (1 - Math.abs(2 * l - 1)) * 100, l * 100];
+}
 
 // Colours and font from the design tokens on el, normalised by a canvas ("#rrggbb" when opaque).
 function tokens(el) {
@@ -82,17 +95,18 @@ function layout(nodes, pairs, main) {
 export function createGraph(el, opts) {
   if (!window.ForceGraph) throw new Error("force-graph is not loaded");
   const C = tokens(el);
-  const fade = (c, aa) => (c[0] === "#" && c.length === 7 ? c + aa : c);   // colour + alpha, for gradients
+  const col = (n, a, dl = 0) => `hsla(${n._h},${n._s}%,${Math.min(96, n._l + dl)}%,${a})`;   // the node's colour this frame
 
   // "Often reverted": the same rule as panel.js (at least 10 and twice the median). A pattern, not blame.
   const rv = opts.nodes.map(n => n.reverts || 0).sort((a, b) => a - b);
   const hot = Math.max(10, 2 * (rv[rv.length >> 1] || 0));
 
   const N = new Map(), L = new Map();                    // key -> node; "a|b" -> link (one per connected pair)
-  const nodes = opts.nodes.map(d => {
-    const title = d.title || String(d.id), key = String(d.id), isMain = key === String(opts.main);
+  const nodes = opts.nodes.map((d, i) => {
+    const title = d.title || String(d.id), key = String(d.id), isMain = key === String(opts.main), rel = isMain ? "main" : d.relation;
     const n = {
-      id: d.id, key, title, main: isMain, rel: isMain ? "main" : d.relation, ringed: (d.reverts || 0) >= hot,
+      id: d.id, key, title, main: isMain, rel, ringed: (d.reverts || 0) >= hot,
+      ph: i * 2.39996, base: hsl(C.rel[rel] || C.rel.related),        // own phase: no two nodes float in step
       short: title.length > LABEL ? title.slice(0, LABEL - 1).trimEnd() + "…" : title,
       w: Math.min(title.length, LABEL) * 6.6 + (isMain ? 70 : 26), h: isMain ? 84 : 40,   // label box at 12 px, roughly; layout only
       on: false, delay: 0, x: 0, y: 0, fx: 0, fy: 0,
@@ -367,10 +381,14 @@ export function createGraph(el, opts) {
   // ---- painting (graph units; divide by k for sizes that should not grow with zoom) ----------------
   function paintLinks(ctx, k) {
     now = performance.now();
+    const t = now / 1000, m = REDUCE.matches ? 0 : 1;
     for (const n of nodes) {
-      const p = at(n.p, now), b = at(n.bloom, now);
+      const p = at(n.p, now), b = at(n.bloom, now), ph = n.ph, f = m * BOB * (1 - at(n.hov, now));
       n._p = p; n._a = clamp(p) * (1 - 0.84 * at(n.dim, now));
-      n._x = n.x * b; n._y = n.y * b;
+      n._x = n.x * b + f * (0.6 * Math.sin(t * 0.55 + ph) + 0.4 * Math.sin(t * 0.93 + ph * 1.7));
+      n._y = n.y * b + f * (0.6 * Math.cos(t * 0.47 + ph * 1.3) + 0.4 * Math.sin(t * 0.81 + ph * 0.6));
+      [n._h, n._s, n._l] = n.base;
+      n._h += m * HUE * Math.sin(t * 0.35 + ph); n._l += m * LIGHT * Math.sin(t * 0.6 + ph * 2.1);
       n._r = at(n.rad, now) * Math.max(0, p) * (1 + 0.18 * at(n.hov, now));
     }
     ctx.lineCap = "round";
@@ -452,21 +470,25 @@ export function createGraph(el, opts) {
   }
 
   function paintNode(n, ctx, k) {
-    const a = n._a, r = n._r, x = n._x, y = n._y, c = C.rel[n.rel] || C.rel.related;
+    const a = n._a, r = n._r, x = n._x, y = n._y;
     if (a < 0.004 || r <= 0) return;
     const circle = rr => { ctx.beginPath(); ctx.arc(x, y, rr, 0, TAU); };
     const glow = Math.max(at(n.hov, now), at(n.sel, now));
-    if (n.main) {                                        // the anchor: a soft halo
-      const g = ctx.createRadialGradient(x, y, r * 0.8, x, y, r * 3.4);
-      g.addColorStop(0, fade(c, "50")); g.addColorStop(1, fade(c, "00"));
-      ctx.globalAlpha = c[0] === "#" ? a : a * 0.15; ctx.fillStyle = g; circle(r * 3.4); ctx.fill();
-    }
-    if (glow > 0.01) { ctx.globalAlpha = a * 0.22 * glow; ctx.fillStyle = c; circle(r + 7 / k); ctx.fill(); }
+    // every node is an atom: a breathing cloud around a lit sphere; the anchor's cloud is wider
+    const R = r * (n.main ? 3.4 : 2.6) * (REDUCE.matches ? 1 : 0.88 + 0.12 * Math.sin(now / 900 + n.ph));
+    const cloud = ctx.createRadialGradient(x, y, r * 0.7, x, y, R);
+    cloud.addColorStop(0, col(n, n.main ? 0.34 : 0.2)); cloud.addColorStop(1, col(n, 0));
+    ctx.globalAlpha = a; ctx.fillStyle = cloud; circle(R); ctx.fill();
+    if (glow > 0.01) { ctx.globalAlpha = a * 0.22 * glow; ctx.fillStyle = col(n, 1); circle(r + 7 / k); ctx.fill(); }
     ctx.globalAlpha = a;
     if (n.rel === "related") {                           // hollow, like its dot in the legend: not linked
       ctx.fillStyle = C.bg; circle(r); ctx.fill();
-      ctx.strokeStyle = c; ctx.lineWidth = Math.min(2 / k, r * 0.5); circle(r - ctx.lineWidth / 2); ctx.stroke();
-    } else { ctx.fillStyle = c; circle(r); ctx.fill(); }
+      ctx.strokeStyle = col(n, 1); ctx.lineWidth = Math.min(2 / k, r * 0.5); circle(r - ctx.lineWidth / 2); ctx.stroke();
+    } else {
+      const s = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.1, x, y, r);   // light from the top left
+      s.addColorStop(0, col(n, 1, 22)); s.addColorStop(1, col(n, 1));
+      ctx.fillStyle = s; circle(r); ctx.fill();
+    }
     if (n.ringed) { ctx.strokeStyle = C.ring; ctx.lineWidth = 1.4 / k; circle(r + 3.6 / k); ctx.stroke(); }   // often reverted
     const s = at(n.sel, now);
     if (s > 0.01) { ctx.globalAlpha = a * s; ctx.strokeStyle = C.text; ctx.lineWidth = 2 / k; circle(r + 0.6 / k); ctx.stroke(); }
@@ -480,7 +502,7 @@ export function createGraph(el, opts) {
     const label = n => {
       const lit = at(n.lit, now), a = clamp(n._p) * clamp(at(n.bloom, now)) ** 4 * Math.max(lit, zoomA * (1 - at(n.dim, now)));
       if (a < 0.02) return;
-      ctx.font = `${n.main ? 600 : 400} ${(n.main ? 13.5 : 12) / k}px ${C.font}`;
+      ctx.font = `${n.main ? 600 : 400} ${(n.main ? 14.5 : 13) / k}px ${C.font}`;   // 13 px minimum: readable on a projector
       const text = n === H || n === sel ? n.title : n.short, ty = n._y + n._r + (n.ringed ? 8 : 5) / k;
       ctx.textBaseline = "top";
       ctx.globalAlpha = a * 0.85; ctx.lineWidth = 3 / k; ctx.strokeText(text, n._x, ty);
@@ -506,8 +528,7 @@ export function createGraph(el, opts) {
       ctx.fillStyle = C.text; ctx.strokeStyle = C.bg;
     }
     ctx.globalAlpha = 1;
-    const loop = pathIds.length > 1 && pathOn.to === 1 && !REDUCE.matches;   // the travelling dot
-    if (now > busyUntil && !loop) fg.autoPauseRedraw(true);                  // nothing is moving: stop redrawing
+    if (REDUCE.matches && now > busyUntil) fg.autoPauseRedraw(true);         // nothing floats and nothing moves: stop redrawing
   }
 
   // ---- self-check: apply() with fewer nodes must not move anything ---------------------------------
@@ -525,7 +546,7 @@ export function createGraph(el, opts) {
       apply({ ...full, added: full.links.filter(l => !both(l)), removed: [] });
       setTimeout(() => {
         check(pos() === before, "nodes moved after showing everything again");
-        check(nodes.every(n => !n.on || (Math.abs(n._x - n.x) < 1e-6 && Math.abs(n._y - n.y) < 1e-6 && Math.abs(n._p - 1) < 1e-6)), "visible nodes are not drawn at rest in their own position");
+        check(nodes.every(n => !n.on || (Math.abs(n._x - n.x) <= BOB + 1e-6 && Math.abs(n._y - n.y) <= BOB + 1e-6 && Math.abs(n._p - 1) < 1e-6)), "visible nodes are not drawn at (or floating around) their own position");
         check(mainNode.x === 0 && mainNode.y === 0, "the main node left the centre");
         el.dataset.selftest = fails.length ? "fail" : "ok";
         console[fails.length ? "error" : "info"]("core.js selftest " + (fails.length ? "FAILED: " + fails.join("; ") : "ok"));

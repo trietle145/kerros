@@ -1,0 +1,40 @@
+import { launch, sleep } from "../eval/cdp.mjs";
+const b = await launch(9341), B = "http://127.0.0.1:5006";
+const out = [];
+await b.viewport(1440, 900);
+await b.go(B + "/?mock=1&q=" + encodeURIComponent("Milloin talvisota alkoi?"), 2500);
+out.push("cites: " + await b.eval(`document.querySelectorAll('.cite').length`), "sources box: " + await b.eval(`!!document.getElementById('sources')`));
+await b.shot("p1-answer");
+let r = await b.rect('.cite[data-n="2"]');
+await b.mouse("mouseMoved", r.x, r.y); await sleep(500);
+out.push("after hover: " + await b.eval(`JSON.stringify({hidden: document.getElementById('cite-pop').hidden, mode: document.getElementById('cite-pop').dataset.mode, side: document.getElementById('cite-pop').dataset.side, title: document.querySelector('#cite-pop h3')?.textContent})`));
+await b.shot("p2-peek");
+await b.mouse("mousePressed", r.x, r.y); await b.mouse("mouseReleased", r.x, r.y); await sleep(400);
+out.push("after click: " + await b.eval(`JSON.stringify({mode: document.getElementById('cite-pop').dataset.mode, role: document.getElementById('cite-pop').getAttribute('role'), links: [...document.querySelectorAll('#cite-pop .src-actions a')].map(a=>a.textContent.trim()+' '+a.getAttribute('href')), expanded: document.querySelector('.cite[data-n="2"]').getAttribute('aria-expanded')})`));
+await b.shot("p3-card");
+await b.mouse("mouseMoved", 200, 120); await sleep(300);
+out.push("card stays when pointer leaves: " + await b.eval(`!document.getElementById('cite-pop').hidden`));
+await b.click(1200, 800); await sleep(300);
+out.push("click outside closes: " + await b.eval(`document.getElementById('cite-pop').hidden`));
+// keyboard: focus a cite, Enter, Escape
+await b.eval(`document.querySelector('.cite[data-n="1"]').focus()`);
+await b.key("Tab","Tab",9); await b.key("Tab","Tab",9,undefined);
+await b.eval(`document.querySelector('.cite[data-n="1"]').focus({focusVisible:true})`);
+await b.key("Enter","Enter",13,"\r"); await sleep(300);
+out.push("enter opens card + focus: " + await b.eval(`JSON.stringify({mode: document.getElementById('cite-pop').dataset.mode, hidden: document.getElementById('cite-pop').hidden, focus: document.activeElement.id})`));
+await b.key("Escape","Escape",27); await sleep(250);
+out.push("escape: " + await b.eval(`JSON.stringify({hidden: document.getElementById('cite-pop').hidden, focus: document.activeElement.className + ' ' + document.activeElement.dataset.n})`));
+// then vs now
+await b.go(B + "/?mock=1&q=" + encodeURIComponent("Mitä Wikipedia sanoi punavangeista vuonna 2007, ja mitä on muuttunut?"), 2500);
+r = await b.rect('.cite[data-n="1"]'); await b.click(r.x, r.y); await sleep(400);
+await b.shot("p4-tvn-card");
+out.push("tvn card era: " + await b.eval(`document.querySelector('#cite-pop header .pill')?.textContent + ' / ' + document.getElementById('cite-pop').dataset.era`));
+// phone
+await b.viewport(390, 844, true);
+await b.go(B + "/?mock=1&q=" + encodeURIComponent("Milloin talvisota alkoi?"), 2500);
+r = await b.rect('.cite[data-n="3"]'); await b.click(r.x, r.y); await sleep(400);
+out.push("phone overflow: " + await b.eval(`document.documentElement.scrollWidth > innerWidth`) + " pop: " + await b.eval(`JSON.stringify(document.getElementById('cite-pop').getBoundingClientRect())`));
+await b.shot("p5-phone-card");
+out.push("errors: " + JSON.stringify(b.log.errors));
+console.log(out.join("\n"));
+await b.close();

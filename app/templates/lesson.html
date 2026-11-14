@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Lesson · Kerros{% endblock %}
+{% block head %}<script type="module" src="{{ url_for('static', filename='lesson.js') }}"></script>{% endblock %}
+{% block body_attrs %} data-page-id="{{ page_id }}" data-q="{{ q }}"{% endblock %}
+{% block content %}
+<div class="page lesson" id="lesson" aria-busy="true">
+  <header class="page-head">
+    <p class="kicker">A short lesson · five articles, general to specific</p>
+    <h1 id="l-title" lang="fi">&nbsp;</h1>
+    <p class="lede">Read the opening of each article in order, then check what stayed with you. Every passage links to the exact
+      Wikipedia version it comes from.</p>
+  </header>
+  <div class="l-progress" id="l-progress" aria-hidden="true"></div>
+  <ol class="steps" id="l-steps"><li class="step-card is-skeleton"><div class="sk" style="width:40%"></div><div class="sk"></div><div class="sk" style="width:85%"></div></li></ol>
+  <div class="l-next" id="l-next" hidden></div>
+  <section class="quiz" id="l-quiz" aria-labelledby="quiz-head" hidden></section>
+</div>
+{% endblock %}

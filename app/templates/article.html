@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ title or "Article history" }} · history{% endblock %}
-{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='history.css') }}">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='history.css') }}">
+<script type="module" src="{{ url_for('static', filename='explain.js') }}"></script>{% endblock %}
 {% block content %}
 {% if error %}
   <p class="notice">{{ error }}</p>
@@ -52,9 +53,11 @@
 <aside class="version">
   Version <a href="{{ version.url }}">{{ version.rev_id }}</a>, saved {{ version.valid_from[:16].replace("T", " ") }} UTC,
   {% if version.valid_to %}replaced {{ version.valid_to[:16].replace("T", " ") }}{% else %}still current{% endif %}
-  {% if version.comment %}· summary: “{{ version.comment[:140] }}”{% endif %}
+  {% if version.comment %}· summary: “{{ (version.comment | no_names)[:140] }}”{% endif %}
   · <a href="https://fi.wikipedia.org/w/index.php?diff={{ version.rev_id }}&oldid=prev">what this edit changed</a>
+  · <button class="linkish" type="button" id="explain" data-page="{{ page_id }}" data-rev="{{ version.rev_id }}" aria-controls="explain-out" aria-expanded="false">Explain this edit</button>
 </aside>
+<section class="explain" id="explain-out" aria-live="polite" hidden></section>
 <article class="wiki" lang="fi">
   {% for kind, text in sections %}
     {% if kind == "ul" %}<ul>{% for item in text %}<li>{{ item }}</li>{% endfor %}</ul>
