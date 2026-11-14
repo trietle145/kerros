@@ -151,14 +151,20 @@ its stub with real edit and revert counts.
 **Verification:** `python -m app.history` (compares with direct SQL, asserts timings, 400/404).
 **Dependencies:** 1.S, 2.A1. **Files:** `app/history.py`. **Scope:** S.
 
-### Task 2.A3 (A): time-view pages
+### Task 2.A3 (A): time-view pages (done 2026-11-14, functional; visual polish later)
+
+**Result:** `/article/<id>` renders the page (JSON with `&format=json`): SVG timeline of every
+month (sqrt-scaled bars, reverts split into named-editor vs anonymous-cleanup, each bar a link
+to the article as of that month's end), native date picker, version box (saved / replaced /
+summary / diff link, no user names), cleaned article text. 44–63 ms per page on the server.
 
 **Description:** An article page with a date picker (the as-of reader) and a timeline chart of edits
 with reverts marked; picking a month opens the article as of that month.
 
 **Acceptance criteria:**
-- [ ] Moving the date changes the text shown and the linked `?oldid=`.
-- [ ] Editors appear as patterns and links to diffs, never labelled as vandals.
+- [x] Moving the date changes the text shown and the linked `?oldid=`.
+- [x] Editors appear as patterns and links to diffs, never labelled as vandals.
 
-**Verification:** manual check on the 3 hero articles.
+**Verification:** manual check on the 3 hero articles (functionality confirmed by Triet);
+`python -m app.history` asserts the oldid changes with the date.
 **Dependencies:** 2.A2. **Files:** `app/templates/article.html`, `app/static/history.*`. **Scope:** M.
