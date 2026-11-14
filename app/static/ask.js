@@ -61,9 +61,9 @@ function render(res, q, animate) {
     const cites = (a.cites || []).filter(n => byN.has(n));
     const text = esc(String(a.text).replace(/\s*\[\d+\]/g, ""));         // markers come from cites, not from the text
     return cites.length
-      ? `<span class="sent" data-cites="${cites.join(" ")}" style="--i:${i++}">${text}${cites.map(n =>
+      ? `<span class="sent" data-cites="${cites.join(" ")}" style="--i:${i++}"><span class="sent-t">${text}</span>${cites.map(n =>
           `<button class="cite" type="button" data-n="${n}" aria-label="Source ${n}: ${esc(byN.get(n).title)}">${n}</button>`).join("")}</span> `
-      : `<span class="sent uncited" style="--i:${i++}" title="No source is cited for this sentence">${text}<span class="pill pill-warn tag-uncited">uncited</span></span> `;
+      : `<span class="sent uncited" style="--i:${i++}" title="No source is cited for this sentence"><span class="sent-t">${text}</span><span class="pill pill-warn tag-uncited">uncited</span></span> `;
   };
   const part = (label, list) => !list.length ? "" :
     `<div class="answer-part">${label ? `<h2 class="kicker" style="--i:${i}">${label}</h2>` : ""}<p class="answer-text">${list.map(sentence).join("")}</p></div>`;
@@ -85,7 +85,10 @@ function render(res, q, animate) {
   };
 
   const answer = res.answer || [];
-  answerBox.innerHTML = (tvn
+  // "Show in English / Finnish": only the sentence text is translated, the citation buttons stay
+  const to = res.lang === "en" ? "fi" : "en", toLabel = to === "fi" ? "Näytä suomeksi · Show in Finnish" : "Show in English";
+  answerBox.innerHTML = (res.lang && answer.some(a => a.cites?.length) ? `<p class="ans-tools"><button class="linkish ans-tr" type="button"
+      data-to="${to}" data-label="${toLabel}">${toLabel}</button> <span class="ans-mt" hidden>Machine translation (Opus-MT); citations unchanged</span></p>` : "") + (tvn
     ? part(`In ${year || "the past"} Wikipedia said`, answer.filter(isThen)) + part("What changed since", answer.filter(a => !isThen(a)))
     : part("", answer)) +
     (tvn && res.diffs?.length ? `<section class="diffs"><h2 class="kicker">What changed in the text
@@ -223,6 +226,37 @@ results.addEventListener("pointerover", e => highlight(cited(e.target)));
 results.addEventListener("pointerleave", () => highlight([]));
 results.addEventListener("focusin", e => highlight(cited(e.target)));
 results.addEventListener("focusout", () => highlight([]));
+answerBox.addEventListener("click", async e => {      // the answer's translate button (app/translate.py)
+  const b = e.target.closest(".ans-tr");
+  if (!b || b.disabled) return;
+  const spans = [...answerBox.querySelectorAll(".sent-t")], note = answerBox.querySelector(".ans-mt");
+  if (b.dataset.orig) {                                 // back to the original
+    JSON.parse(b.dataset.orig).forEach((t, k) => { spans[k].textContent = t; });
+    delete b.dataset.orig;
+    b.textContent = b.dataset.label;
+    note.hidden = true;
+    return;
+  }
+  const texts = spans.map(s => s.textContent);
+  b.disabled = true;
+  b.textContent = "Translating…";
+  try {
+    const r = await fetch("/api/translate", { method: "POST", headers: { "Content-Type": "application/json" },
+                                              body: JSON.stringify({ texts, to: b.dataset.to }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || d.translations?.length !== texts.length) throw new Error(d.error || `HTTP ${r.status}`);
+    d.translations.forEach((t, k) => { spans[k].textContent = t; });
+    b.dataset.orig = JSON.stringify(texts);
+    b.textContent = "Show original";
+    note.hidden = false;
+  } catch (err) {
+    console.warn("translate answer:", err);
+    b.textContent = "Translation failed, try again";
+  } finally {
+    b.disabled = false;
+  }
+});
+
 results.addEventListener("click", e => {
   const cite = e.target.closest(".cite"), more = e.target.closest(".more"), go = e.target.closest("[data-go]");
   if (cite) {

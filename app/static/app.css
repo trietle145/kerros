@@ -361,3 +361,5 @@ body.page-graph footer { max-width: none; padding: .3rem 1rem; border: 0; font-s
 
 /* Machine translation of a Finnish block (static/translate.js): always labelled as such */
 [data-fi]::after { content: " · machine translation (Opus-MT)"; color: var(--muted); font-size: .8em; font-style: italic; }
+.ans-tools { margin: 0 0 .5rem; }
+.ans-mt { color: var(--muted); font-size: .8em; font-style: italic; }

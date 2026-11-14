@@ -18,7 +18,7 @@ document.addEventListener("click", async e => {
   btn.textContent = "Translating…";
   try {
     const r = await fetch("/api/translate", { method: "POST", headers: { "Content-Type": "application/json" },
-                                              body: JSON.stringify({ text: fi, to: "en" }) });
+                                              body: JSON.stringify({ text: fi, from: "fi", to: "en" }) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok || !d.translation) throw new Error(d.error || `HTTP ${r.status}`);
     el.dataset.fi = fi;

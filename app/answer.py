@@ -14,6 +14,7 @@ from app.embed import embed
 from app.history import stats
 from app.llm import RefusedError, complete
 from app.search import rank
+from app.translate import guess_lang
 
 bp = Blueprint("answer", __name__)
 
@@ -86,6 +87,7 @@ def answer(question, as_of=None):
     renumber(lines, sources)
     cited = [s for s in sources if any(s["n"] in a["cites"] for a in lines)]
     return {"question": question, "kind": "plain", "answer": lines, "sources": sources,
+            "lang": guess_lang(" ".join(a["text"] for a in lines)),
             "xlang": xlang.adds(vector, list({s["page_id"] for s in cited}), [s["passage_id"] for s in cited])}
 
 
