@@ -30,7 +30,7 @@ CREATE TABLE passage_text (
   rev_id      INT UNSIGNED NOT NULL,        -- first version that had this text
   title       VARCHAR(255) NOT NULL,
   heading     VARCHAR(255),
-  text        TEXT NOT NULL,
+  text        MEDIUMTEXT NOT NULL,          -- old versions hold blocks over TEXT's 64 KB
   alive_secs  BIGINT UNSIGNED NOT NULL,     -- total time live, over all its lifetimes
   KEY (page_id)
 ) CHARACTER SET utf8mb4;
