@@ -22,24 +22,27 @@
     </a>
     {% set mock = request.args.get('mock') %}
     <nav class="nav" aria-label="Sections">
-      <a href="{{ url_for('ask.index', mock=mock) }}"{% if request.endpoint == 'ask.index' %} aria-current="page"{% endif %}>Ask</a>
+      <a id="nav-ask" href="{{ url_for('ask.index', mock=mock) }}"{% if request.endpoint == 'ask.index' %} aria-current="page"{% endif %}>Ask</a>
       <a href="{{ url_for('ask.drift', mock=mock) }}"{% if request.endpoint == 'ask.drift' %} aria-current="page"{% endif %}>Language drift</a>
       <a href="{{ url_for('ask.tools', mock=mock) }}"{% if request.endpoint == 'ask.tools' %} aria-current="page"{% endif %}>Editor tools</a>
     </nav>
     {% block topbar %}
     <a class="back" id="back-q" href="/" hidden><b aria-hidden="true">←</b><span></span></a>
-    <script>  // back to the last question asked in this tab (the Ask page restores it without refetching)
+    {% endblock %}
+    <script>  // back to the last question asked in this tab (the Ask page restores it without refetching):
+              // the Back button and the Ask menu link both return to it; the Kerros logo starts a new one
       try {
-        var s = JSON.parse(sessionStorage.getItem("lastAsk")), a = document.getElementById("back-q");
+        var s = JSON.parse(sessionStorage.getItem("lastAsk"));
         if (s && s.q) {   // keep ?mock=1 and the date, or Back would fire a different (live) question
           var p = new URLSearchParams({ q: s.q }), m = new URLSearchParams(location.search).get("mock");
           if (s.asOf) p.set("as_of", s.asOf);
           if (m) p.set("mock", m);
-          a.href = "/?" + p; a.lastChild.textContent = s.q; a.hidden = false;
+          var a = document.getElementById("back-q"), ask = document.getElementById("nav-ask");
+          if (a) { a.href = "/?" + p; a.lastChild.textContent = s.q; a.hidden = false; }
+          if (ask) ask.href = "/?" + p;
         }
       } catch (e) {}
     </script>
-    {% endblock %}
   </header>
   <main id="main">{% block content %}{% endblock %}</main>
   <footer>
