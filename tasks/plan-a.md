@@ -127,18 +127,28 @@ file instead of a `.sql`, so it carries its own check.
 recomputed in plain Python, all identical to the table.
 **Dependencies:** 1.A5. **Files:** `scripts/build_reverts.py`. **Scope:** S.
 
-### Task 2.A2 (A): time-view endpoints and stats()
+### Task 2.A2 (A): time-view endpoints and stats() (done 2026-11-14)
+
+**Result:** Talvisota as of 2005/2015/2025 → the right `rev_id` in 10–138 ms; timeline 234
+months, 2,143 edits, 328 reverts, 7 ms; `stats()` 7 ms for 4 pages, unknown pages get zeros
+(B's source cards now show real numbers with no change on their side). Bad `as_of` → 400,
+before the article existed → 404.
+
+**JSON shapes** (for 2.A3 and B): `/article/<id>?as_of=` → `{page_id, title, rev_id, as_of,
+valid_from, valid_to (null = still current), user, comment, url, blocks: [[kind, text], ...]}`
+with kind `p`, `li`, `h2`, `h3`...; `/article/<id>/timeline` → `{page_id, months: [{month:
+"YYYY-MM", edits, reverts, cleanup}]}` (cleanup = reverts that undid an anonymous edit).
 
 **Description:** `/article/<page_id>?as_of=<date>` returns the article as it stood then (cleaned for
 reading); `/article/<page_id>/timeline` returns edits and reverts per month; `stats()` replaces
 its stub with real edit and revert counts.
 
 **Acceptance criteria:**
-- [ ] AS OF returns the right `rev_id` for 3 dates on *Talvisota*.
-- [ ] The timeline matches the edit counts in `article FOR SYSTEM_TIME ALL`.
-- [ ] Both answer in under 1 second.
+- [x] AS OF returns the right `rev_id` for 3 dates on *Talvisota*.
+- [x] The timeline matches the edit counts in `article FOR SYSTEM_TIME ALL`.
+- [x] Both answer in under 1 second.
 
-**Verification:** compare against direct SQL; timings logged.
+**Verification:** `python -m app.history` (compares with direct SQL, asserts timings, 400/404).
 **Dependencies:** 1.S, 2.A1. **Files:** `app/history.py`. **Scope:** S.
 
 ### Task 2.A3 (A): time-view pages
