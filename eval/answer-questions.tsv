@@ -4,9 +4,9 @@ fact	How many days did the Winter War last?	105
 fact	When was the Continuation War fought?	25(th)? (of )?June|June 25 && 19(th)? (of )?September|September 19|4(th)? (of )?September|September 4
 fact	When was the Finnish Civil War fought?	27(th)? (of )?January|January 27 && 15(th)? (of )?May|May 15
 fact	How many Reds died in prison camps during and after the Finnish Civil War?	11[ ,.]?652
-fact	When did the Finnish parliament approve the declaration of independence, and by what vote?	6(th)? (of )?December|December 6 && 100\s*(–|-|to)\s*88
+fact	When did the Finnish parliament approve the declaration of independence, and by what vote?	6(th)? (of )?December|December 6 && 100\D{0,12}88
 fact	How long was Urho Kekkonen president of Finland?	1956 && 1982
-fact	By how many electoral votes did Kekkonen win the 1956 presidential election?	151\s*(–|-|to)\s*149
+fact	By how many electoral votes did Kekkonen win the 1956 presidential election?	151\D{0,12}149
 fact	When was Mannerheim born and where did he die?	1867 && Lausanne
 fact	Who did Finland fight in the Lapland War, and when did it end?	German && 27(th)? (of )?April|April 27
 fact	When was the Paris Peace Treaty that ended the war for Finland signed?	10(th)? (of )?February|February 10
