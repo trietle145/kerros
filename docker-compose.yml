@@ -1,0 +1,24 @@
+# The shared MariaDB. Same file on the Verda machine, a PC or a laptop (small local copy).
+#   cp .env.example .env   # fill in passwords
+#   docker compose up -d
+# schema.sql runs automatically on the first start (empty data volume only).
+services:
+  db:
+    image: mariadb:lts        # needs 11.7+ for VECTOR
+    restart: unless-stopped
+    env_file: .env            # MARIADB_ROOT_PASSWORD, MARIADB_DATABASE, MARIADB_USER, MARIADB_PASSWORD
+    command:
+      - --innodb-buffer-pool-size=${INNODB_BUFFER_POOL:-2G}
+      - --mhnsw-max-cache-size=${MHNSW_CACHE:-1G}   # vector index cache; the default 16M is far too small
+      - --mhnsw-ef-search=80                         # fixed setting (see CLAUDE.md)
+    ports:
+      # Default: reachable from this machine only. On the shared machine set DB_BIND to its
+      # Tailscale IP. Never 0.0.0.0: Docker's published ports bypass the host firewall.
+      # DB_PORT: the port on the host (3307 on Triet's PC, where a MySQL service holds 3306).
+      - "${DB_BIND:-127.0.0.1}:${DB_PORT:-3306}:3306"
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+
+volumes:
+  dbdata:

@@ -1,0 +1,44 @@
+/* Article history page. Colours, type and motion come from app.css (loaded first by base.html);
+   this file only lays out the page's own parts. Reverts differ in colour and in lightness. */
+.hist-head { animation: rise var(--dur-slow) var(--ease-out) both; }
+.hist-head h1 { width: fit-content; margin: .25rem 0 .5rem; font: 600 clamp(2rem, 1.4rem + 2.4vw, 3rem)/1.1 var(--font-serif);
+  letter-spacing: -.02em; view-transition-name: article-title; }
+.totals { margin: 0 0 1.5rem; color: var(--muted); font-size: .9375rem; font-variant-numeric: tabular-nums; }
+
+.timeline { margin: 0 0 1.25rem; padding: 1rem 1rem .75rem; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius); }
+.timeline svg { width: 100%; height: auto; display: block; overflow: visible; }
+.timeline .hit { fill: transparent; }
+.timeline .edits { fill: color-mix(in srgb, var(--accent) 55%, var(--surface-2)); }
+.timeline .named { fill: var(--removed); }
+.timeline .cleanup { fill: color-mix(in srgb, var(--removed) 45%, var(--surface-2)); }
+.timeline a:hover .hit, .timeline a:focus .hit { fill: var(--surface-2); }
+.timeline a:focus { outline: none; }
+.timeline a.sel .hit { fill: var(--rel-main); opacity: .4; }
+.timeline text { fill: var(--muted); font-size: 11px; }
+.timeline figcaption { display: flex; flex-wrap: wrap; gap: .4rem 1rem; margin-top: .5rem; color: var(--muted); font-size: .8125rem; }
+.timeline figcaption i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; vertical-align: -1px; }
+.k-edits { background: color-mix(in srgb, var(--accent) 55%, var(--surface-2)); }
+.k-named { background: var(--removed); }
+.k-cleanup { background: color-mix(in srgb, var(--removed) 45%, var(--surface-2)); }
+.muted { opacity: .8; }
+
+.asof { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; margin: 0 0 1rem; color: var(--muted); font-size: .9375rem; }
+.asof input, .asof button { min-height: 2.25rem; padding: .3rem .7rem; border: 1px solid var(--border); border-radius: 9px;
+  background: var(--surface-2); color: var(--text); font: inherit; font-variant-numeric: tabular-nums; }
+.asof input { margin-left: .4rem; }
+.asof button { font-weight: 500; cursor: pointer; transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast) ease; }
+.asof button:active { transform: scale(.97); }
+@media (hover: hover) and (pointer: fine) { .asof button:hover { border-color: var(--accent); } }
+
+.version { padding: .7rem 1rem; margin: 0 0 1.5rem; background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--rel-main); border-radius: 8px; color: var(--muted); font-size: .875rem; overflow-wrap: anywhere; }
+.wiki { font: 1.0625rem/1.7 var(--font-serif); }
+.wiki h2 { margin: 2rem 0 .5rem; padding-bottom: .3rem; border-bottom: 1px solid var(--border); font-size: 1.5rem; line-height: 1.25; letter-spacing: -.01em; }
+.wiki h3 { margin: 1.4rem 0 .4rem; font-size: 1.2rem; }
+.wiki p, .wiki li { max-width: 70ch; }
+.wiki p { margin: 0 0 .8rem; }
+.wiki ul { margin: 0 0 .8rem; padding-left: 1.3rem; list-style: disc; }
+.notice { padding: .8rem 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+
+@media (prefers-reduced-motion: reduce) { .asof button:active { transform: none; } }

@@ -1,0 +1,40 @@
+{
+  "question": "Milloin talvisota alkoi ja miten se päättyi?",
+  "kind": "plain",
+  "answer": [
+    {"text": "Talvisota alkoi 30. marraskuuta 1939, kun Neuvostoliitto hyökkäsi Suomeen ilman sodanjulistusta.", "cites": [1]},
+    {"text": "Neljä päivää aiemmin Neuvostoliitto oli lavastanut Mainilan laukaukset ja sanonut niiden perusteella irti maiden välisen hyökkäämättömyyssopimuksen.", "cites": [2, 3]},
+    {"text": "Sota päättyi 105 päivää myöhemmin, 13. maaliskuuta 1940, Moskovan rauhansopimukseen.", "cites": [1]},
+    {"text": "Rauhanehtoja pidettiin Suomessa yleisesti ankarina.", "cites": []}
+  ],
+  "sources": [
+    {
+      "n": 1, "passage_id": 738, "page_id": 1256, "rev_id": 24273471,
+      "title": "Talvisota", "heading": null,
+      "text": "Talvisota käytiin Suomen ja Neuvostoliiton välillä 30. marraskuuta 1939 – 13. maaliskuuta 1940. Neuvostoliitto aloitti sodan hyökkäämällä Suomeen ilman sodanjulistusta, ja sota päättyi 105 päivää myöhemmin Moskovan rauhansopimukseen.\nSotaa edelsivät loka–marraskuussa 1939 käydyt neuvottelut, joissa Neuvostoliitto painosti Suomea siirtämään itärajaa kauemmaksi Leningradista. Neuvostoliitto oli jo elokuussa 1939 solminut Saksan kanssa Molotov–Ribbentrop-sopimuksen, jonka salaisessa lisäpöytäkirjassa Suomi laskettiin osaksi Neuvostoliiton etupiiriä.",
+      "score": 0.04839, "url": "https://fi.wikipedia.org/?oldid=24273471",
+      "edits": 2143, "reverts": 328
+    },
+    {
+      "n": 2, "passage_id": 1795, "page_id": 8295, "rev_id": 24242554,
+      "title": "Mainilan laukaukset", "heading": null,
+      "text": "Mainilan laukaukset oli Mainilan kylässä tapahtunut, Neuvostoliiton lavastama välikohtaus, joka johti Suomen ja Neuvostoliiton välisen hyökkäämättömyyssopimuksen yksipuoliseen purkamiseen. Neljä päivää myöhemmin alkoi Suomen ja Neuvostoliiton välinen talvisota Neuvostoliiton hyökätessä Suomeen.\nNeuvostoliiton mukaan 26. marraskuuta 1939 sen alueella sijaitsevassa Mainilan rajakylässä Valkeasaaressa oli kuollut neljä harjoituksissa ollutta rajajoukkojen sotilasta Suomen puolelta tulleeseen tykki- ja heitintuleen. Suomi tarjoutui selvittämään tapausta yhteistyössä Neuvostoliiton kanssa. Neuvostoliitto kuitenkin sanoi irti voimassa olleen hyökkäämättömyyssopimuksen.",
+      "score": 0.03252, "url": "https://fi.wikipedia.org/?oldid=24242554",
+      "edits": 177, "reverts": 16
+    },
+    {
+      "n": 3, "passage_id": 1796, "page_id": 8295, "rev_id": 24242554,
+      "title": "Mainilan laukaukset", "heading": "Neuvostoliiton ensimmäinen nootti",
+      "text": "Neuvostoliiton ulkoministeri Vjatšeslav Molotov lähetti 26. marraskuuta 1939 Suomen Moskovan-lähettiläs Aarno Yrjö-Koskiselle nootin, jonka mukaan Suomen puolelta oli sanottuna päivänä klo 15.45 ammuttu seitsemän tykistön laukausta Neuvostoliiton puolelle. Nootin mukaan ne olivat surmanneet kolme sotamiestä ja yhden aliupseerin sekä haavoittaneet seitsemää sotamiestä ja kahta päällystön jäsentä.",
+      "score": 0.03101, "url": "https://fi.wikipedia.org/?oldid=24242554",
+      "edits": 177, "reverts": 16
+    },
+    {
+      "n": 4, "passage_id": 739, "page_id": 1256, "rev_id": 24273471,
+      "title": "Talvisota", "heading": "Suurvallat Saksa ja Neuvostoliitto",
+      "text": "Ensimmäinen maailmansota merkitsi Saksalle ja Neuvosto-Venäjälle suurvalta-aseman menetystä. Molemmat maat toipuivat 1930-luvulla tultaessa diktatuureina takaisin suurvaltojen joukkoon ja alkoivat tavoitella menettämiään alueita takaisin. Euroopan demokraattiset suurvallat Yhdistynyt kuningaskunta ja Ranska olivat poliittisesti heikkoja.\nSuomen ja Viron itsenäistyttyä Venäjä oli menettänyt Kronstadtia lukuun ottamatta kaikki Suomenlahden rannikkolinnoitukset, mikä heikensi Leningradin puolustuksellista asemaa. Samaten Suomen ja Neuvostoliiton välinen valtakunnanraja kulki Rajajoella kaupungista vain noin 32 kilometrin etäisyydellä.",
+      "score": 0.01613, "url": "https://fi.wikipedia.org/?oldid=24273471",
+      "edits": 2143, "reverts": 328
+    }
+  ]
+}

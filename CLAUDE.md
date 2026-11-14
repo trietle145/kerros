@@ -1,13 +1,28 @@
 # Project: Wikipedia trust tool on MariaDB (Junction hackathon, MariaDB challenge)
 
-> Updated 2026-11-13 after the planning session. Items marked **OPEN** are not decided yet.
-> Full rough plan: https://claude.ai/artifact/92Jie7dsbM9C85B7KRBF2s
+> Updated 2026-11-14. Items marked **OPEN** are not decided yet.
+> The plan and task list: `tasks/plan.md`.
 
 ## Goal
-Build a Wikipedia tool that is missing or underused, with MariaDB at the core. Judged on:
-creative use of MariaDB RAG (vector search) and/or SVT (system-versioned tables), technical
-execution and scaling across datasets, usefulness to readers or editors, design and demo quality.
-Doing RAG and SVT together earns extra credit.
+Build a Wikipedia tool that is missing or underused, with MariaDB at the core. The topic is free
+(Finnish history is just what the datasets contain). **Rubric, 20% each:** effective and creative
+use of MariaDB (RAG and/or SVT); implementation and **scalability across the provided datasets**
+(S, M and L); usefulness for readers or editors; design and demo quality; **originality**. Bonus
+(0%, tie-breaker): technical ambition on SVT or combining both tracks. The brief's "very advanced"
+example: a RAG assistant that answers *"what did Wikipedia say about this in 2015, and what has
+changed since?"* A plain cited-Q&A chatbot is the most common hackathon idea; originality has to
+come from the time side.
+
+## Resources (from the challenge page)
+- Team repo: https://github.com/trietle145/LakeBandits_junction. Planning docs are on the
+  `planning` branch.
+- Datasets (S, M, L): https://github.com/MariaDB/mariadb-wikipedia-datasets
+- RAG starter: https://github.com/MariaDB/mariadb-vector-wikipedia-rag
+- SVT starter: https://github.com/MariaDB/mariadb-system-versioning-wikipedia
+- MariaDB brings: the server with native vector search, system-versioned tables, the three
+  datasets, the starter docs and mentors on site. Any LLM, embedding model or frontend is allowed.
+- Mentors from the MariaDB Foundation, on site throughout: Kaj Arnö (Executive Chairman) and
+  Robert Silén (AI Lead). They help with data modelling, query design and scaling.
 
 ## The idea
 A web app that answers questions about Finnish history from Wikipedia and shows, for every
@@ -17,28 +32,74 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
 
 ## Decisions
 - Team of 2. Audience: both readers and editors. Web app first; extension or MCP later.
-- Base = cited Q&A (RAG) + version history (SVT), joined at paragraph level. Build this first.
-- The "twist" is one added feature, chosen later (**OPEN**). Candidates: contested-paragraph
-  heatmap, dispute ranking for all articles, citation history, source check, ask-the-past,
-  vandalism survival time.
+- Base = cited Q&A (RAG) + two time views (SVT): an article as of a date, and an edit timeline
+  with reverts. Build this first. In the base the two tracks sit side by side and meet only at
+  the History button on a cited source.
+- The highlight is one feature **through time**, added on top of the base without changing it.
+  **Direction (2026-11-14, pilot works, both people to confirm): time-aware retrieval** ("then vs
+  now" answers). Meaning lives in the vector, time lives in the table: the date is stripped from
+  the question and becomes `FOR SYSTEM_TIME AS OF` on a system-versioned `passage_history`;
+  dates are never mixed into embeddings. Today's counterpart of an old passage is found by vector
+  distance within the article (headings get renamed), then word-diffed. The same table later
+  gives source-health badges (stable / rewritten / contested / lost its citation). Design and the
+  MariaDB selling points: docs/architecture.md, "Time-aware retrieval". Fallback highlight: the
+  edit-war radar (needs only `revert_event`).
+- **Selling point for the MariaDB criterion:** the database does the hard parts. One SQL
+  statement does vector search + temporal filter + citation of the version live on that date;
+  real Wikipedia edit times via `system_versioning_insert_history`; vectors keyed by text hash so
+  unchanged passages across hundreds of versions are embedded once; reverts by window functions
+  (16 s over 862k versions); hybrid FULLTEXT + vector RRF in SQL.
+- Costly to change later, so settle before embedding: the chunking rule and the exact text that
+  is embedded (old versions must be split and embedded the same way). Start the full history
+  load early; it takes all night. Everything else can be rebuilt from the Parquet files.
 - History: all of dataset M in one system-versioned `article` table with real timestamps.
-- Search: paragraphs from M's newest version per article, cleaned to plain text. One paragraph
-  per passage, short ones merged up to ~300 words, title + section heading prefixed before
-  embedding. One bge-m3 vector each. Where embedding runs is set per machine (`.env`); the rule
-  is the same model and settings for paragraphs and questions.
+- Search (decided 2026-11-14, details in docs/architecture.md "Chunking, embedding and keyword
+  search"): passages from M's newest version per article, cleaned to plain text. **One passage
+  per section** (lead included); sections over ~300 words split at paragraphs; no merging across
+  sections, no overlap; reference/link sections skipped. ~67k passages, median ~80 words.
+  Embedding input `title \n heading \n text`, bge-m3 dense, max 1,024 tokens; `text_hash` =
+  SHA-256 of that input. Same model and settings for passages and questions.
+- Hybrid retrieval with RRF (k = 60, top 50 per side), `UNION ALL` + `GROUP BY` (no FULL OUTER
+  JOIN in MariaDB). Keyword half = `FULLTEXT(title, heading, text)` in boolean mode with **prefix
+  terms** built in Python, because FULLTEXT has no Finnish stemming: words of 6+ letters drop
+  their last 3 letters (min 4) and get `*` (Kekkonen → `Kekko*`); numbers and short words exact.
+- **As built:** hybrid over **three** lists (passage vectors, FULLTEXT on **names and years only**,
+  whole-article S vectors), RRF in one statement. Starter's 37 questions: hit@5 76%, hit@10 86%
+  (= the starter's best, but with paragraph-level citations); keyword half on every word was
+  worse (70%). Table and reasons: docs/architecture.md, "Approaches for retrieval" and "Design
+  choices at a glance (for the pitch)".
 - Keep the shipped S article vectors for whole-article search and the sv/en articles.
-- Answer-writing model: a cloud model on hackathon credits, kept as a setting.
-- Working habits on the PC: checkout `main` first, create `.venv` first, data under `data/`
-  (never committed).
+- **Vector index setting (fixed, recommended by MariaDB):** `VECTOR INDEX (embedding) M=16
+  DISTANCE=cosine` on every vector table, and `SET mhnsw_ef_search = 80` on every connection that
+  searches. Defaults (M=6) found only 79% of the true top 10. Re-measure recall with
+  `index_recall.py` when the number of vectors changes, but start from these values.
+- Answer-writing model: **Claude Opus 5.5** (`effort: low`, server-side fallback to Opus 4.8),
+  a setting in `.env`; key on the server and in A's local `.env` only. ~$0.03 per answer, ~3–4 s.
+- **Hosting (decided 2026-11-14): one always-on Verda CPU server**, `lakebandits-db`,
+  CPU.4V.16G, FIN-01, Ubuntu 24.04, 80 GB, ~€1.50/day from the Lake Bandits project (€200
+  credits). Set up by `scripts/server_setup.sh`; runs `docker-compose.yml` (MariaDB now; Flask
+  app and Caddy for public HTTPS later). MariaDB listens on the server's 127.0.0.1 only; people
+  reach it by SSH tunnel (`ssh -N -L 3307:127.0.0.1:3306 root@<server>`, see `SERVER.md`), each
+  with their own login (`triet` read-write, `hung` read-only). The repo is private, so the
+  server's copy came from a git bundle; deploy later = update its copy, `docker compose up -d
+  --build`. Embedding runs on Modal (`scripts/modal_embed.py`); questions are embedded on the
+  CPU of whatever machine runs the app. Local Docker MariaDB copies still work for development.
+  **Delete (not shut down) the instance after the event**; shut-down instances still bill.
+- Branches: `planning` = integration (shared files and docs); A works on `a-data-time` (backend),
+  B on `frontend` (pages, see `docs/frontend.md` there), merged into `planning` by PR; `main` gets
+  `planning` at Phase checkpoints. `b-search-app` holds B's earlier plans (graph plan, roadmap).
+  Create `.venv` first (`pip install -r requirements.txt`); data under `data/` (never committed).
 
-## Phases
-1. Data in: M into the versioned table, S with its vectors.
-2. Paragraphs: clean, split, embed, index. Beat the starter's 76% top-5 on the 37 test questions,
-   plus our own paragraph-level questions (see docs/architecture.md, Evaluation).
-3. Cited answers and article summaries on the web page.
-4. One added feature from docs/ideas.md (paragraph history, if needed, on ~200 pilot articles).
-5. Scale numbers on L, polish, demo rehearsal.
-Before phase 1: the "First hour" checks in docs/architecture.md.
+## Phases (tasks with acceptance criteria in `tasks/plan.md`)
+Split between two people (revised again 2026-11-14): **A = all backend** (data, search, answers,
+time-aware answers, history, graph data, L at scale), **B = all frontend** (every page, the look,
+demo polish). The JSON API is the contract between them: `docs/frontend.md` (on `frontend`).
+1. Get running: MariaDB on D:, shared over Tailscale; M loaded (overnight); paragraphs built,
+   embedded on a GPU and loaded; S vectors loaded.
+2. The base: cited answers (vector, then hybrid; beat the starter's 76% top-5), time views
+   (article as of a date, timeline with reverts), History button joining them.
+3. The highlight through time (**OPEN**, planned after Phase 2).
+4. Scale numbers on L, polish, demo rehearsal (**OPEN**).
 
 ## Architecture (docs/architecture.md)
 - Core = cited Q&A + article summaries. Retrieval (decided): hybrid, paragraph vectors plus
@@ -54,8 +115,10 @@ Before phase 1: the "First hour" checks in docs/architecture.md.
 - Keep these three choices: vectors keyed by text hash (old versions can get vectors later);
   every paragraph keeps its source `rev_id` (citations link to `?oldid=`); the full history is
   loaded even though the core reads only the newest revision.
-- Feature ideas (edit wars, vandalism, cross-language, contradictions...) live in docs/ideas.md
-  and add tables next to these; they must not require changing the core.
+- Feature ideas (edit wars, vandalism, cross-language, contradictions...) live in `tasks/plan.md`
+  (Phase 3) and add tables next to these; they must not require changing the core.
+- Points to settle when the time features are built are in docs/architecture.md, "Notes for the
+  time features".
 
 ## Data (from github.com/MariaDB/mariadb-wikipedia-datasets, releases `*-2026-10`)
 - **S**: History of Finland, current versions. 19,285 fi, 4,921 sv, 5,254 en articles. Clean
@@ -67,6 +130,8 @@ Before phase 1: the "First hour" checks in docs/architecture.md.
   Use for SVT, edit wars and citation history.
 - **L**: all 568,416 fi articles, current version, Markdown, no vectors. Use only to show scaling.
 - Links back: `https://fi.wikipedia.org/?curid=<page_id>`, one version: `?oldid=<rev_id>`.
+- Download sizes (compressed): S 145 MB, M 301 MB, L 472 MB. M unpacks to 12.2 GB (full copy per
+  version), so loading M is the overnight step; loading L is short, embedding L is the slow part.
 
 ## Stack (from the starter repos; reuse before writing new code)
 - MariaDB 12.x (`mariadb:lts` in Docker). Vector search needs 11.7+;
@@ -96,20 +161,49 @@ Before phase 1: the "First hour" checks in docs/architecture.md.
   index on a versioned or partitioned table.
 
 ## Project docs
-- `docs/plan.md`: the rough plan (idea, decisions, phases, feature candidates, risks).
-- `docs/architecture.md`: core cited Q&A architecture.
-- `docs/ideas.md`: open list of feature ideas; nothing in it is committed to yet.
+- `tasks/plan.md`: the shared plan (idea, decisions, ownership, contracts, feature pool, risks).
+  Per-person tasks: `tasks/plan-a.md` (branch `a-data-time`), `tasks/plan-b.md` (`b-search-app`).
+- `docs/architecture.md`: the base (cited Q&A and time views) and what the time features add.
 - `docs/research/wikipedia-problems.md`: problems worth solving, ranked, with sources.
 - `docs/research/edit-wars.md`: edit wars and vandalism, detection methods, 8 feature ideas.
 
-## Current state of this folder (2026-11-13)
-- `.venv` exists (Python 3.13, `mariadb` + `pyarrow`). Dataset M is in `data/m/` (16 Parquet
-  files, checksums verified). `data/` and `.venv/` are git-ignored. No commits yet.
-- Nothing is loaded. Blocker: no MariaDB is running. Docker Desktop's disk image is on C: with
-  3.6 GB free; move it to D: (or run a portable MariaDB from D:) before loading.
-- `schema.sql` (all five tables) is written. Next steps for the load: a Parquet
-  loader `scripts/load_m.py` (real timestamps, resumable, `--limit`), a 20-article smoke test,
-  then the full load in the background logging to `data/load_m.log`.
+## Current state of this folder (2026-11-14)
+- `.venv` exists (Python 3.13, `mariadb` + `pyarrow`). Datasets M (`data/m/`, 16 Parquet files)
+  and S (`data/s/`) are downloaded, checksums verified. `data/` and `.venv/` are git-ignored.
+  Code so far: `scripts/common.py`, `load_m.py`, `load_s.py`; app skeleton (1.S): `app/main.py`,
+  `db.py`, `embed.py`, stub `ask.py` and `history.py`, `templates/base.html`.
+- MariaDB 12.3.3 runs on this PC in Docker (`docker compose up -d`), data volume on D:, host port
+  **3307** (a MySQL 9.4 Windows service holds 3306; leave it alone). Schema applied, ef_search=80
+  confirmed, login `triet`. **All of M is loaded** (19,742 articles, 862,076 versions, 6.1 GB,
+  11.5 min; `load_m.py --verify 30` all ok). **S vectors loaded** into `article_vector`
+  (29,460 rows, 0.7 min; `load_s.py --verify` ok, search ~1 ms warm). **Passages and vectors
+  loaded** (66,642 each, embedded on Modal in 6.4 min; recall@10 99.4%, ~11–17 ms).
+- **Shared server** (`root@135.181.8.213`, SSH alias `lakebandits` on A's PC) holds the same:
+  all of M, S vectors, 66,642 passages + vectors (recall 99.2%), all verified. Plus
+  `revert_event` (46,015 reverts, Talvisota 328), and A's time pages run there (`app/history.py`).
+  The server's repo copy is updated from a git bundle (the repo is private).
+- **Backend works end to end on the server** (`a-data-time`): hybrid search (`app/search.py`),
+  cited answers via Claude (`app/answer.py`, `app/llm.py`), then-vs-now answers
+  (`app/timeqa.py`) through the same `/ask`, article as-of page + timeline (`app/history.py`).
+  Full history: `passage_history` (593,195 lifetimes), `history_vector` (353,166 vectors).
+  The app runs on the server in tmux `web` (Flask dev server, port 5000, reached by tunnel);
+  Frontend (B) is merged: ask page, graph page; guide `docs/frontend.md`.
+- Loading bge-m3 needs ~5 GB free memory; short of it, it fails with misleading errors. The first
+  question after an app restart takes ~13 s (model load); gunicorn warms it at start
+  (`gunicorn.conf.py`); restart with `bash scripts/restart_app.sh` on the server.
+- The 99 `#OHJAUS` redirect-page junk passages were deleted from `passage`, `passage_vector` and
+  `history_vector` on the server (66,543 passages left, all with vectors).
+- `.env.example` lists every setting; copy to `.env` (git-ignored) and fill in.
+- Next (A): public hosting (gunicorn + Caddy + password, model warm-up); L at scale (Markdown
+  passages, Modal, recall/latency at ~2M); source-health badges; graph data for B's graph page;
+  final round: answer-level eval on new questions, then translate-before-search / reranker /
+  two-stage time search as that eval shows.
+
+## Coding style
+- Use the `ponytail` skill (level full) for every coding task: the smallest code that works,
+  reuse the starter repos and existing helpers (`scripts/common.py`) before writing new code,
+  stdlib and MariaDB features before new dependencies. Each non-trivial script leaves one
+  runnable check behind (like `load_m.py --verify`).
 
 ## Boundaries
 - Never commit secrets or API keys; read them from environment variables.

@@ -1,0 +1,223 @@
+{
+ "question": "Mitä Wikipedia sanoi sisällissodan punavangeista vuonna 2007, ja mitä on muuttunut?",
+ "kind": "then_vs_now",
+ "as_of": "2007-06-01",
+ "compare_to": "2026-10-01",
+ "answer": [
+  {
+   "text": "Vuonna 2007 Wikipedia kertoi, että sodan päätyttyä voittajien käsiin jäi noin 80 000 punavankia.",
+   "cites": [
+    1
+   ]
+  },
+  {
+   "text": "Nykyään luvuksi annetaan 76 000, ja mukana on myös maininta noin 10 000 Neuvosto-Venäjälle paenneesta punakaartilaisesta ja näiden perheenjäsenestä.",
+   "cites": [
+    2
+   ]
+  },
+  {
+   "text": "Uutta on myös tieto, että noin 10 000 vankia armahdettiin 30. lokakuuta 1918 ja pakkotyölaitoksiin jäi noin 6 100 punavankia.",
+   "cites": [
+    2
+   ]
+  },
+  {
+   "text": "Valtiorikosoikeuksien tuomitsemien määrä on muuttunut noin 68 000:sta noin 70 000:een.",
+   "cites": [
+    3,
+    4
+   ]
+  }
+ ],
+ "sources": [
+  {
+   "n": 1,
+   "era": "then",
+   "page_id": 1150,
+   "rev_id": 2943189,
+   "title": "Suomen sisällissota",
+   "heading": "Hävinneen kohtalo",
+   "text": "Valkoisten ja punaisten välisen sodan päätyttyä 5. toukokuuta 1918 voittajien käsiin jäi noin 80 000 punavankia. Valkoisen terrorin huippuvaiheen mentyä ohi nousi toukokuussa 1918 esiin kysymys vankiongelman ratkaisusta. Toukokuun lopussa ja kesäkuun alussa 1918 vapautettiin joko välittömästi tai kuulustelujen jälkeen (ns. Aminoffin tutkintajärjestelmä) muutamia tuhansia vankeja, mutta heitä myös teloitettiin vielä kesäkuussa. Lopulta vankileireillä oli noin 74 000 punavankia. Heidän kohdallaan päädyttiin toimintaperiaatteeseen, jonka mukaan jokaisen vangin tapaus oli tutkittava erikseen, ja ennen kaikkea, että heidät pidettäisiin vangittuina tuomioon saakka. Päätös johti yhdessä vuoden 1918 sodan aiheuttaman vakavan elintarvikepulan kanssa korkeaan vankileirikuolleisuuteen. Elintarvikepula ei ilmeisestikään yksin riitä selittämään henkilömenetyksiä, vaan sen lisäksi kysymyksessä oli myös punavankeihin kohdistunut harkittu rankaisumentaliteetti ja välinpitämättömyys, joiden merkitys korostui kesän 1918 alkupuolella.",
+   "url": "https://fi.wikipedia.org/?oldid=2943189",
+   "edits": 3357,
+   "reverts": 344
+  },
+  {
+   "n": 2,
+   "era": "now",
+   "page_id": 1150,
+   "rev_id": 24234990,
+   "title": "Suomen sisällissota",
+   "heading": "Hävinneen kohtalo",
+   "text": "Sodan loppuvaiheessa noin 10 000 punakaartilaista ja näiden perheenjäsentä pakeni Neuvosto-Venäjälle. Sodan päätyttyä 5. toukokuuta 1918 vangittuna oli 76 000 punavankia. Valkoisen terrorin huippuvaiheen mentyä ohi nousi toukokuussa 1918 esiin kysymys vankiongelman ratkaisusta. Toukokuun lopussa ja kesäkuun alussa 1918 vapautettiin joko välittömästi tai kuulustelujen jälkeen (niin sanottu Aminoffin tutkintajärjestelmä) muutamia tuhansia vankeja, mutta heitä myös teloitettiin vielä kesäkuussa. Tämän jälkeen vielä noin 10 000 vankia armahdettiin 30. lokakuuta 1918. Jäljelle jäi noin 6 100 punavankia, jotka pysyivät vangittuina pakkotyölaitoksissa.\nValkoisen armeijan ja senaatin välillä kiisteltiin pitkään toimintatavoista punavankien suhteen. Lopulta päädyttiin toimintaperiaatteeseen, jonka mukaan jokaisen vangin tapaus oli tutkittava erikseen, ja ennen kaikkea, että heidät pidettäisiin vangittuna tuomioon saakka. Päätös johti yhdessä vuoden 1918 sodan aiheuttaman vakavan elintarvikepulan kanssa korkeaan vankileirikuolleisuuteen.",
+   "url": "https://fi.wikipedia.org/?oldid=24234990",
+   "edits": 3357,
+   "reverts": 344
+  },
+  {
+   "n": 3,
+   "era": "then",
+   "page_id": 1150,
+   "rev_id": 2943189,
+   "title": "Suomen sisällissota",
+   "heading": "Tuomiot",
+   "text": "Valtiorikosoikeudet tuomitsivat kaikkiaan noin 68 000 suomalaista. Valtaosaa rangaistiin avunannosta valtiopetokseen. Kuolemaan tuomittiin 555 henkilöä, mutta vain 113 tuomiota pantiin käytäntöön. Erimittaisia vapausrangaistuksia ja määräaikainen kansalaisluottamuksen menetys määrättiin 60 000 kansalaiselle, joista 10 200 henkilöä armahdettiin 30. lokakuuta 1918. Oikeudenkäynneissä osa vankileireille suljetuista henkilöistä todettiin lopulta aiheettomasti vangituiksi. Valtaosa annetuista vapausrangaistuksista oli lieviä ja ne muutettiin lopulta ehdonalaistuomioiksi, joilla vapautettiin 40 000 vankia. Vuoden 1918 lopussa punavankeja oli vankiloissa noin 6 000..",
+   "url": "https://fi.wikipedia.org/?oldid=2943189",
+   "edits": 3357,
+   "reverts": 344
+  },
+  {
+   "n": 4,
+   "era": "now",
+   "page_id": 1150,
+   "rev_id": 24234990,
+   "title": "Suomen sisällissota",
+   "heading": "Tuomiot",
+   "text": "Valtiorikosoikeudet tuomitsivat kaikkiaan noin 70 000 suomalaista. Valtaosaa rangaistiin avunannosta valtiopetokseen. Kuolemaan tuomittiin 555 henkilöä, mutta vain 113 tuomiota pantiin täytäntöön. Erimittaisia vapausrangaistuksia ja määräaikainen kansalaisluottamuksen menetys määrättiin 60 000 kansalaiselle, joista 10 200 henkilöä armahdettiin 30. lokakuuta 1918. Oikeudenkäynneissä osa vankileireille suljetuista henkilöistä todettiin lopulta aiheettomasti vangituiksi. Valtaosa annetuista vapausrangaistuksista oli lieviä ja ne muutettiin lopulta ehdonalaistuomioiksi, joilla vapautettiin 40 000 vankia. Vuoden 1918 lopussa punavankeja oli vankiloissa 6 100 ja 100 vuonna 1921. Tuolloin palautettiin myös kansalaisluottamus 40 000 entiselle punaiselle. Vuonna 1927 Väinö Tannerin hallitus armahti viimeiset 50 punavankia. Vuonna 1973 Suomen hallitus maksoi korvauksia 11 600 entiselle punavangille.",
+   "url": "https://fi.wikipedia.org/?oldid=24234990",
+   "edits": 3357,
+   "reverts": 344
+  }
+ ],
+ "diffs": [
+  {
+   "then": 1,
+   "now": 2,
+   "similarity": 0.61,
+   "ops": [
+    [
+     "delete",
+     "Valkoisten"
+    ],
+    [
+     "insert",
+     "Sodan loppuvaiheessa noin 10 000 punakaartilaista"
+    ],
+    [
+     "equal",
+     "ja"
+    ],
+    [
+     "delete",
+     "punaisten välisen sodan"
+    ],
+    [
+     "insert",
+     "näiden perheenjäsentä pakeni Neuvosto-Venäjälle. Sodan"
+    ],
+    [
+     "equal",
+     "päätyttyä 5. toukokuuta 1918"
+    ],
+    [
+     "delete",
+     "voittajien käsiin jäi noin 80"
+    ],
+    [
+     "insert",
+     "vangittuna oli 76"
+    ],
+    [
+     "equal",
+     "000 punavankia. Valkoisen terrorin huippuvaiheen mentyä ohi nousi toukokuussa 1918 esiin kysymys vankiongelman ratkaisusta. Toukokuun lopussa ja kesäkuun alussa 1918 vapautettiin joko välittömästi tai kuulustelujen jälkeen"
+    ],
+    [
+     "delete",
+     "(ns."
+    ],
+    [
+     "insert",
+     "(niin sanottu"
+    ],
+    [
+     "equal",
+     "Aminoffin tutkintajärjestelmä) muutamia tuhansia vankeja, mutta heitä myös teloitettiin vielä kesäkuussa."
+    ],
+    [
+     "insert",
+     "Tämän jälkeen vielä noin 10 000 vankia armahdettiin 30. lokakuuta 1918. Jäljelle jäi noin 6 100 punavankia, jotka pysyivät vangittuina pakkotyölaitoksissa. Valkoisen armeijan ja senaatin välillä kiisteltiin pitkään toimintatavoista punavankien suhteen."
+    ],
+    [
+     "equal",
+     "Lopulta"
+    ],
+    [
+     "delete",
+     "vankileireillä oli noin 74 000 punavankia. Heidän kohdallaan"
+    ],
+    [
+     "equal",
+     "päädyttiin toimintaperiaatteeseen, jonka mukaan jokaisen vangin tapaus oli tutkittava erikseen, ja ennen kaikkea, että heidät pidettäisiin"
+    ],
+    [
+     "delete",
+     "vangittuina"
+    ],
+    [
+     "insert",
+     "vangittuna"
+    ],
+    [
+     "equal",
+     "tuomioon saakka. Päätös johti yhdessä vuoden 1918 sodan aiheuttaman vakavan elintarvikepulan kanssa korkeaan vankileirikuolleisuuteen."
+    ],
+    [
+     "delete",
+     "Elintarvikepula ei ilmeisestikään yksin riitä selittämään henkilömenetyksiä, vaan sen lisäksi kysymyksessä oli myös punavankeihin kohdistunut harkittu rankaisumentaliteetti ja välinpitämättömyys, joiden merkitys korostui kesän 1918 alkupuolella."
+    ]
+   ]
+  },
+  {
+   "then": 3,
+   "now": 4,
+   "similarity": 0.78,
+   "ops": [
+    [
+     "equal",
+     "Valtiorikosoikeudet tuomitsivat kaikkiaan noin"
+    ],
+    [
+     "delete",
+     "68"
+    ],
+    [
+     "insert",
+     "70"
+    ],
+    [
+     "equal",
+     "000 suomalaista. Valtaosaa rangaistiin avunannosta valtiopetokseen. Kuolemaan tuomittiin 555 henkilöä, mutta vain 113 tuomiota pantiin"
+    ],
+    [
+     "delete",
+     "käytäntöön."
+    ],
+    [
+     "insert",
+     "täytäntöön."
+    ],
+    [
+     "equal",
+     "Erimittaisia vapausrangaistuksia ja määräaikainen kansalaisluottamuksen menetys määrättiin 60 000 kansalaiselle, joista 10 200 henkilöä armahdettiin 30. lokakuuta 1918. Oikeudenkäynneissä osa vankileireille suljetuista henkilöistä todettiin lopulta aiheettomasti vangituiksi. Valtaosa annetuista vapausrangaistuksista oli lieviä ja ne muutettiin lopulta ehdonalaistuomioiksi, joilla vapautettiin 40 000 vankia. Vuoden 1918 lopussa punavankeja oli vankiloissa"
+    ],
+    [
+     "delete",
+     "noin"
+    ],
+    [
+     "equal",
+     "6"
+    ],
+    [
+     "delete",
+     "000.."
+    ],
+    [
+     "insert",
+     "100 ja 100 vuonna 1921. Tuolloin palautettiin myös kansalaisluottamus 40 000 entiselle punaiselle. Vuonna 1927 Väinö Tannerin hallitus armahti viimeiset 50 punavankia. Vuonna 1973 Suomen hallitus maksoi korvauksia 11 600 entiselle punavangille."
+    ]
+   ]
+  }
+ ]
+}
