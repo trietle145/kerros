@@ -3,17 +3,42 @@
 Owner: **B**. Branch: `b-search-app`, merged into `planning` by PR. Tick your boxes here.
 The shared plan (idea, decisions, who owns which file, contracts, risks) is `tasks/plan.md`.
 
-**Order:** 2.B1 eval on `article_vector` (S vectors are already loaded; proves the question
-embedding) → 2.B2 cited answers on A's pilot passages → 2.B3 ask page → 2.B1 again on all
-passages when A sends them → 2.B4 hybrid → 2.J1 History button (after A's 2.A2) → 2.B5 reranker
-if time allows.
+## Start here (updated 2026-11-14)
+
+All data is ready on the **shared server**, so there is no pilot phase and no waiting on A:
+66,642 passages + vectors (recall@10 99.2%, ~11 ms searches), the S article vectors and the full
+history. Connect with **`SERVER.md`** (in this branch): SSH key → tunnel → `.env` → checks.
+Your login is read-only; ask Triet if you need to write.
+
+```bash
+git pull origin planning          # keep shared files current (embed.py fixes are already merged here)
+pip install -r requirements.txt
+python -m app.embed               # downloads bge-m3 once (~2.3 GB); needs ~5 GB free memory
+```
+
+**Order:** 2.B1 search + eval on the full passages, plus the article-level check on
+`article_vector` → 2.B2 cited answers → 2.B3 ask page → 2.B4 hybrid → 2.J1 History button (after
+A's 2.A2) → 2.B5 reranker if time allows.
 
 **You own:** `app/search.py`, `app/rerank.py`, `app/llm.py`, `app/ask.py`,
 `app/templates/ask.html`, `app/static/ask.*`, `eval/`. **You call, don't edit:** `app/embed.py`,
-`app/db.py`, `app.history.stats()`. Load A's Parquet files with `scripts/load_vectors.py`.
+`app/db.py`, `app.history.stats()` (returns zeros until A's 2.A2).
 
-**Until A's files arrive:** `app/ask.py` returns a fixed example in the `/ask` JSON shape; keep
-that shape when you replace it.
+`app/ask.py` returns a fixed example in the `/ask` JSON shape; keep that shape when you replace it
+(contract in `tasks/plan.md`). Merge into `planning` by PR, one task per PR.
+
+**Search query shape** (already tested on the server): vector search in a subquery, join after,
+or the index isn't used:
+
+```sql
+SELECT p.passage_id, p.page_id, p.rev_id, p.title, p.heading, p.text, v.d
+FROM (SELECT text_hash, VEC_DISTANCE_COSINE(embedding, ?) AS d
+      FROM passage_vector ORDER BY d LIMIT 50) v
+JOIN passage p USING (text_hash) ORDER BY v.d;
+```
+
+`?` is `app.embed.embed([question])[0]` (raw bytes). `app.db.connect()` already sets
+`mhnsw_ef_search = 80`.
 
 ---
 
@@ -21,9 +46,10 @@ that shape when you replace it.
 
 **Description:** `app/search.py` `search()` returns the top 8 paragraphs for a question (vector
 search in a subquery, joined to `passage` afterwards, at most 2 per article). `eval/evaluate.py`
-runs the starter's 37 test questions. **Starts before passages exist:** the eval runs first
-against `article_vector` (already loaded; article-level, same as the starter), and `search()`
-runs on A's pilot passages. Switch both to all passages when 1.A8 lands; only the table changes.
+runs the starter's 37 test questions (`data/test-questions.tsv` in the RAG starter repo). All
+passages are loaded (1.A8 done), so build on them directly. Also run the eval once against
+`article_vector` (article-level, same as the starter) to confirm our question embedding matches
+the shipped S vectors.
 
 **Acceptance criteria:**
 - [ ] Eval on `article_vector` reproduces the starter's ~76% top-5 (proves our question embedding
@@ -32,7 +58,7 @@ runs on A's pilot passages. Switch both to all passages when 1.A8 lands; only th
 - [ ] One search takes under 100 ms on the database side.
 
 **Verification:** `python eval/evaluate.py` prints top-5 / top-10 hit rates.
-**Dependencies:** 1.S (start); 1.A8 (passage numbers). **Files:** `app/search.py`, `eval/evaluate.py`. **Scope:** S.
+**Dependencies:** none left (1.S and 1.A8 done). **Files:** `app/search.py`, `eval/evaluate.py`. **Scope:** S.
 
 ### Task 2.B2 (B): cited answers
 
@@ -46,7 +72,7 @@ exists and flags sentences without one.
 - [ ] The provider and model come from `.env`.
 
 **Verification:** a script that runs the 10 questions and prints answers with sources; read by hand.
-**Dependencies:** 1.S, pilot passages from 1.A6 (not the full search). **Files:** `app/llm.py`. **Scope:** S.
+**Dependencies:** 2.B1 (`search()` feeds it). **Files:** `app/llm.py`. **Scope:** S.
 
 ### Task 2.B3 (B): ask page
 
@@ -72,7 +98,7 @@ statement with `UNION ALL` + `GROUP BY` (no FULL OUTER JOIN in MariaDB). See `do
 - [ ] A question with an exact name or year (e.g. "president 1956–1982") finds the right paragraph.
 
 **Verification:** `eval/evaluate.py` run for both modes.
-**Dependencies:** 2.B1; passages loaded (1.A8, passages half). **Files:** `app/search.py`. **Scope:** S.
+**Dependencies:** 2.B1 (the `passage` FULLTEXT index is already on the server). **Files:** `app/search.py`. **Scope:** S.
 
 ### Task 2.B5 (B, optional): reranker, measured
 
