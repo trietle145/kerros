@@ -1,0 +1,26 @@
+kind	question	expect
+fact	When did the Winter War start and end?	30(th)? (of )?November|November 30(th)? && 13(th)? (of )?March|March 13(th)?
+fact	How many days did the Winter War last?	105
+fact	When was the Continuation War fought?	25(th)? (of )?June|June 25 && 19(th)? (of )?September|September 19|4(th)? (of )?September|September 4
+fact	When was the Finnish Civil War fought?	27(th)? (of )?January|January 27 && 15(th)? (of )?May|May 15
+fact	How many Reds died in prison camps during and after the Finnish Civil War?	11[ ,.]?652
+fact	When did the Finnish parliament approve the declaration of independence, and by what vote?	6(th)? (of )?December|December 6 && 100\D{0,12}88
+fact	How long was Urho Kekkonen president of Finland?	1956 && 1982
+fact	By how many electoral votes did Kekkonen win the 1956 presidential election?	151\D{0,12}149
+fact	When was Mannerheim born and where did he die?	1867 && Lausanne
+fact	Who did Finland fight in the Lapland War, and when did it end?	German && 27(th)? (of )?April|April 27
+fact	When was the Paris Peace Treaty that ended the war for Finland signed?	10(th)? (of )?February|February 10
+fact	When was the Great Fire of Turku and how many people lost their homes?	1827 && 11[ ,.]?000
+fact	When did the Diet of Porvoo meet?	1809 && March
+fact	When was the first edition of the Kalevala published?	1835
+fact	When was the Treaty of Tartu signed?	14(th)? (of )?October|October 14
+fact	What did the Soviet Union claim happened at Mainila in November 1939?	26(th)? (of )?November|November 26 && four|4
+fact	Who settled the Åland question, and in which year?	League of Nations && 1921
+fact	Who founded Helsinki and in which year?	Gustav|Kustaa && 1550
+fact	Who was the first president of Finland?	Ståhlberg
+fact	What was the Mäntsälä rebellion, and when did it happen?	1932 && Lapua
+then_vs_now	What did Wikipedia say about the red prisoners of the Civil War in 2007, and what has changed?	80[ ,.]?000 && 76[ ,.]?000
+then_vs_now	What did Wikipedia say about the Mainila shots in 2006, and what has changed since?
+none	How many moons does Jupiter have?
+none	Who won the 2022 FIFA World Cup?
+none	What was Urho Kekkonen's shoe size?

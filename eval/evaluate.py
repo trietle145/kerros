@@ -63,11 +63,15 @@ def main():
             cur.execute("SELECT page_id FROM article WHERE title = ?", (q["expected_fi_title"],))
             row = cur.fetchone()
             q["page_id"] = row[0] if row else None
+            if args.l and q["page_id"]:     # L half-loaded: an article with no vectors yet can't be found, leave it out
+                cur.execute("SELECT 1 FROM l_passage p JOIN l_vector v USING (text_hash) WHERE p.page_id = ? LIMIT 1",
+                            (q["page_id"],))
+                q["page_id"] = q["page_id"] if cur.fetchone() else None
     missing = [q["expected_fi_title"] for q in questions if not q["page_id"]]
     questions = [q for q in questions if q["page_id"]]
     t = time.perf_counter()
     vectors = embed([q["question"] for q in questions])
-    print(f"{len(questions)} questions ({len(missing)} expected articles not in M: {missing}); "
+    print(f"{len(questions)} questions ({len(missing)} left out, article not in M{' or no L vectors yet' * args.l}: {missing}); "
           f"embedding {(time.perf_counter() - t) * 1000 / len(questions):.0f} ms per question")
     modes = (("whole articles (S vectors)", whole_articles),
              ("vec", passages(("vec",))), ("vec + ft (names)", passages(("vec", "ft"))),
