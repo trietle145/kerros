@@ -6,13 +6,17 @@ One function for both, so the two can never be embedded with different settings.
 from functools import lru_cache
 
 MODEL = "BAAI/bge-m3"      # same model as the shipped S vectors
+REVISION = "5617a9f61b028005a4858fdac845db406aefb181"   # pinned: every machine, same files
 MAX_TOKENS = 1024          # a 300-word Finnish passage is ~600 tokens
 
 
 @lru_cache(maxsize=1)
 def _model():
     from sentence_transformers import SentenceTransformer   # slow import: only when embedding
-    m = SentenceTransformer(MODEL)
+    try:   # the Hub check on every load fails now and then ("Unrecognized processing class")
+        m = SentenceTransformer(MODEL, revision=REVISION, local_files_only=True)
+    except (OSError, ValueError):   # not cached yet: download once
+        m = SentenceTransformer(MODEL, revision=REVISION)
     m.max_seq_length = MAX_TOKENS
     return m
 
