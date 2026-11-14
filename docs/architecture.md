@@ -384,7 +384,7 @@ lifetimes) next to these.
 | `app/timeqa.py` | Time questions: routing, passages live on a date, today's counterpart, word diffs, then-vs-now answer |
 | `app/llm.py` | `complete()`: the one model call; provider and model from `.env` |
 | `app/history.py` | Time views: article as of a date (page + JSON), timeline, `stats()` for source cards |
-| `app/ask.py` | Frontend page routes (B); `/try` in `answer.py` is a temporary test page |
+| `app/ask.py` | Frontend page routes (B): `/` (ask), `/graph/<page_id>` |
 | `app/main.py` | Flask app: registers the `answer`, `history` and `ask` blueprints; the JSON routes are the API an extension or MCP can use later |
 | `schema.sql` | The core tables; `build_history.py` creates the history tables |
 | `eval/evaluate.py` | Retrieval eval on the starter's 37 questions, per list and fused |

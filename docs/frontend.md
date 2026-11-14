@@ -176,6 +176,18 @@ Live. `404` if the article didn't exist on the date, `400` for a bad date.
 Live. `{"page_id": 1256, "months": [{"month": "2003-10", "edits": 2, "reverts": 0, "cleanup": 0}, …]}`
 (only months with edits; `cleanup` = reverts that undid an anonymous edit).
 
+### `GET /api/related?q=<question>` (live)
+
+`{"articles": [{"page_id", "title", "snippet", "score"}]}`, up to 10: the hybrid search's passages
+grouped by article (best passage as the snippet, ≤ 220 characters). `score` is an RRF score (about
+0.01–0.05), so don't show it as a percentage. `400` on an empty question.
+
+### `GET /api/graph/<page_id>/path` (live)
+
+`{"path": [{"id", "why"}], "source": "heuristic"}`: up to 4 of the shown nodes, most linked-to
+(most general) first, then the main article. No model call, so it's instant and free; `source` is
+always `"heuristic"`. `404` for an unknown article.
+
 ### `GET /api/graph/<page_id>` (live)
 
 `404` for an unknown article; a redirect page resolves to its target. ~0.4 s the first time per

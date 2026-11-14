@@ -187,11 +187,12 @@ demo polish). The JSON API is the contract between them: `docs/frontend.md` (on 
   (`app/timeqa.py`) through the same `/ask`, article as-of page + timeline (`app/history.py`).
   Full history: `passage_history` (593,195 lifetimes), `history_vector` (353,166 vectors).
   The app runs on the server in tmux `web` (Flask dev server, port 5000, reached by tunnel);
-  `/try` is a temporary test page. Frontend: B on `frontend`, guide `docs/frontend.md`.
+  Frontend (B) is merged: ask page, graph page; guide `docs/frontend.md`.
 - Loading bge-m3 needs ~5 GB free memory; short of it, it fails with misleading errors. The first
-  question after an app restart takes ~13 s (model load); warm it at start when deploying.
-- The server's `passage` table still holds 117 `#OHJAUS` junk rows (fixed in code); reload it at a
-  time agreed with B (~20 s, passage ids change).
+  question after an app restart takes ~13 s (model load); gunicorn warms it at start
+  (`gunicorn.conf.py`); restart with `bash scripts/restart_app.sh` on the server.
+- The 99 `#OHJAUS` redirect-page junk passages were deleted from `passage`, `passage_vector` and
+  `history_vector` on the server (66,543 passages left, all with vectors).
 - `.env.example` lists every setting; copy to `.env` (git-ignored) and fill in.
 - Next (A): public hosting (gunicorn + Caddy + password, model warm-up); L at scale (Markdown
   passages, Modal, recall/latency at ~2M); source-health badges; graph data for B's graph page;
