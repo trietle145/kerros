@@ -1,18 +1,18 @@
 # Architecture: cited Q&A and time views
 
-2026-11-13, updated 2026-11-14 evening (as built). Retrieval: **hybrid, five lists fused in one
-SQL statement**. Built on top of the base: then-vs-now answers ("Time-aware retrieval"), the
-cross-language gaps ("Cross-language gaps"), and dataset L at scale ("Scale: S → M → L"). What
-MariaDB cost us to learn is in "MariaDB: what it costs". Feature ideas: `tasks/plan.md` (Phase 3).
+As built, 2026-11-14. Retrieval: **hybrid, five lists fused in one SQL statement**. On top of
+the cited Q&A: then-vs-now answers ("Time-aware retrieval"), the cross-language gaps
+("Cross-language gaps"), and dataset L at scale ("Scale: S → M → L"). What MariaDB cost us to
+learn is in "MariaDB: what it costs". Scores: [`eval/README.md`](../eval/README.md). Pages and
+API: [`docs/frontend.md`](frontend.md).
 
 ## What the core does
 
 A person asks a question about Finnish history in Finnish, Swedish or English. The app finds the
 Wikipedia paragraphs that answer it and writes a short answer where every sentence cites its
-paragraph by number. Each citation links to the exact Wikipedia revision the text came from. A
-second mode summarises one article with the same citations.
+paragraph by number. Each citation links to the exact Wikipedia revision the text came from.
 
-This is the RAG track's core: retrieval from MariaDB, an answer with sources, a summary.
+This is the RAG track's core: retrieval from MariaDB and an answer with sources.
 
 Next to it sit two time views from the SVT track: read any article as it stood on a chosen date,
 and see an article's edit timeline with its reverts. The two sides meet on the source card under
@@ -48,28 +48,6 @@ trade-off column is what to say when a judge pushes back.
 | **Cross-language gaps labelled in SQL** (en/sv paragraph vs every Finnish paragraph, now and through history) | "What does English Wikipedia say that Finnish doesn't, and did Finnish ever say it?": both tracks again | 35,829 en/sv paragraphs for 7,256 articles labelled in 5 min | Fixed distance cut-offs; "partly" is the grey zone |
 | **Scale on dataset L in the same tables and index settings** | The scalability criterion: 1.5M passages of all 568k Finnish articles | Embedded on Modal in ~1 h; load and search numbers in "Scale: S → M → L" | Index build is one writer at a time (~65–740 inserts/s) |
 | **One always-on CPU server, MariaDB never public** | Cheap; GPU only for embedding runs; team access by SSH tunnel | ~€1.50/day; all data loaded and verified on it | One machine = one point of failure |
-
-## Base now, time features later
-
-Everything in this document up to "Notes for the time features" is the **base**. It is built
-first and stays as it is.
-
-| | What it is | Status |
-| --- | --- | --- |
-| Base | Cited Q&A and summaries over today's paragraphs (RAG); article as of a date and edit timeline with reverts (SVT) | Build first |
-| Highlight | One feature through time from the feature pool in `tasks/plan.md`, for example the same question answered as of a chosen year | Added on top; which one is open |
-
-Two things to keep in mind:
-
-- **The base alone is not the demo.** In the base, RAG answers from today's text and SVT shows
-  article history, side by side, joined only by the History button. Both starters already do
-  their half. What no starter does is search and time in the same query, and that is what the
-  highlight adds.
-- **Three things are costly to change later**, because changing them means embedding everything
-  again or loading all night again: the chunking rule, the exact text that is embedded, and the
-  full history load. Old paragraph versions must be split and embedded the same way as current
-  ones, or their hashes and vectors will not match. Everything else can be rebuilt from the
-  Parquet files in minutes to hours.
 
 ## Approaches for retrieval
 
@@ -309,8 +287,6 @@ sequenceDiagram
   W-->>U: answer + sources linked to ?oldid=rev_id (+ what en/sv Wikipedia add)
 ```
 
-The summary mode is the same flow with one article's paragraphs instead of a search.
-
 **Answer generation as built** (`app/answer.py`, `app/llm.py`): the top 8 passages (at most 2
 per article) are numbered and sent with the question to Claude Opus 5.5 (`effort: low`). The
 system prompt asks for 2–5 sentences in the question's language, one per line, each ending with
@@ -329,9 +305,9 @@ in English or Swedish, and the answer can carry an "Other Wikipedias add" block 
 
 ## The time side
 
-Decided: two time views are part of the core, reverts are found once and stored, the Q&A answers
-from the newest text (a date is accepted but ignored for now), and the two sides meet on the
-source card.
+Two time views sit next to the Q&A: an article as of a date and its edit timeline with reverts.
+Reverts are found once and stored. The two sides meet on the source card, and in the then-vs-now
+answers ("Time-aware retrieval").
 
 ```mermaid
 flowchart TD
@@ -382,8 +358,8 @@ WHERE x.rn - x.prev_rn > 1;                   -- something in between was undone
 ```
 
 Each row answers: who undid whom, when, how many edits were undone, and how long the undone text
-stayed visible (`reverted_at - undone_since`). The edit-war and vandalism ideas in the feature pool in `tasks/plan.md`
-become plain queries on this table. Known limit: an exact-text match misses partial reverts and
+stayed visible (`reverted_at - undone_since`). The edit-war radar and source health are plain
+queries on this table. Known limit: an exact-text match misses partial reverts and
 rewordings. To check on the first run: versions with no `sha1` and blanked pages all share one
 "text", so they would show up as false reverts and need filtering out.
 
@@ -398,19 +374,18 @@ other questions are answered from the newest text.
 disk and do not speed up queries at this size, but they show time partitioning in use and let old
 years be archived.
 
-## Three choices that keep the feature ideas open
+## Three choices that made the time features possible
 
 1. **Vectors are keyed by text hash, not by paragraph position.** The same text is embedded once,
    however many articles or revisions contain it. Old paragraph versions can get vectors later by
-   embedding only the texts not seen yet, which is what "ask the past" and "meaning drift" need.
+   embedding only the texts not seen yet: that is how 862,076 versions needed only 353,166 vectors.
 2. **Every paragraph keeps the revision it came from.** Citations point at an exact revision, and
    the history features can join any paragraph back to the versioned `article` table.
-3. **The full history loads now, even though the core only reads the newest revision.** The
-   edit-war, vandalism and "what changed" ideas all start from that table, and the load takes all
-   night.
+3. **The full history is loaded, though the plain Q&A reads only the newest revision.** Then-vs-now
+   answers, source health, rewind, the edit-war radar and drift all start from that table.
 
-Nothing in the feature pool in `tasks/plan.md` needs the core to change; those ideas add tables (revert events, paragraph
-lifetimes) next to these.
+Each feature added its own tables (revert events, paragraph lifetimes, en/sv paragraphs) next to
+the core ones; none changed them.
 
 ## Code layout
 
@@ -437,77 +412,30 @@ lifetimes) next to these.
 | `app/graph.py` | `/api/graph/<page_id>` (wiki links through time), reading path, `/api/related` |
 | `app/llm.py` | `complete()`: the one model call; provider and model from `.env` |
 | `app/history.py` | Time views: article as of a date (page + JSON), timeline, `stats()` for source cards |
-| `app/ask.py` | Frontend page routes (B): `/` (ask), `/graph/<page_id>` |
+| `app/insights.py` | Trust and editor routes: source health, rewind, edit-war radar, contradictions, citation finder, explain an edit, `/ask/l` |
+| `app/translate.py` | `/api/translate`: Opus-MT models on our own server (no API, no key) |
+| `app/ask.py` | Page routes: `/` (ask), `/graph/<page_id>`, `/drift`, `/tools` |
 | `app/main.py` | Flask app: registers the blueprints; the JSON routes are the API an extension or MCP can use later |
 | `schema.sql` | The core tables + `article_langlink`; the history, xlang and L scripts create their own |
 | `eval/evaluate.py` | Retrieval eval on the starter's 37 questions, per list and fused; `--l` = the same over dataset L |
 | `eval/scale.py` | Per vector table (S, M, M history, L): rows, index recall@10 against an exact scan, search time |
+| `eval/answers.py` | Answer eval: 25 new questions, fact match, refusals, a judge call per answer for citation support |
 | `tools/make_fixtures.py` | Real-data JSON fixtures for the frontend (`app/static/fixtures/`) |
+| `tools/make_drift.py` | `app/static/drift.json` for the drift page: one scan of every paragraph text and lifetime |
 
 ## Evaluation
 
-The starter's 37 test questions only check that the right *article* is found. Our claim is about
-paragraphs and citations, so we measure three things:
+Full tables and method: [`eval/README.md`](../eval/README.md).
 
-1. **Article found:** the 37 questions, right article in the top 5 / top 10, against the starter's
-   76% / 86%.
-2. **Paragraph found:** 20 to 30 of our own questions, each with the paragraph that answers it,
-   written by hand from a few hero articles. Right paragraph in the top 5 / top 10.
-3. **Citations faithful:** for each answer sentence, does the paragraph it cites actually say it?
-   Checked by hand on the same questions at first; a model-graded check later if time allows.
+- **Search** (starter's 37 questions, right article in the top 5 / 10): 92% / 95% on M, against
+  the starter's 76% / 86%; 91% / 94% on dataset L.
+- **Answers** (25 new questions): 95% correct facts, 96% of citations support their sentence,
+  3/3 refusals on questions Wikipedia can't answer.
+- **Vector index:** recall@10 98.6–99.2% at `M=16`, `ef_search = 80`; 4 ms median on M's passages.
 
-**Status (2026-11-14):** (1) done: hit@5 92%, hit@10 95% (table in "Approaches for retrieval");
-the same search over dataset L in "Scale: S → M → L".
-(2) and (3) are next, on 15–20 new questions not used for tuning, including then-vs-now
-questions; they also become the demo script. hit@k measures only the search step; the prompt
-affects (3), not hit@k.
+## Time-aware retrieval: MariaDB does the time
 
-## Runtime is set up per machine
-
-Nothing in the schema or the code depends on where things run. Each machine sets its own `.env`:
-database host and port (Docker, portable MariaDB or a cloud database), where bge-m3 runs for
-questions (local Ollama or a hosted endpoint), and the cloud model for answers. The one rule:
-paragraphs and questions are embedded with the same model and settings.
-
-## First hour: checks before building on them
-
-- A MariaDB 11.7+ is running somewhere with ~15 GB free.
-- `schema.sql` runs, and a vector search and a `FULLTEXT` search each return rows on a handful of
-  test paragraphs.
-- Five questions embedded on the GPU machine and on the query machine give the same vectors
-  (cosine similarity above 0.99).
-- The starter's wikitext cleaner gives readable passages on 3 hero articles.
-- Finnish `FULLTEXT`: done. Exact search misses other word forms; boolean prefix search
-  (`Kekko*`) finds them. See "Chunking, embedding and keyword search".
-
-## Settings decided for now
-
-- Passage = one section (lead included), long sections split at paragraphs to ~300 words; the
-  title and heading are prepended only when embedding, not in the stored text. Details in
-  "Chunking, embedding and keyword search".
-- `M=16`, `SET mhnsw_ef_search = 80`; measured at 66k vectors: recall@10 99.2–99.8%.
-- Vector search goes in a subquery and is joined afterwards, so the index is used.
-- Hybrid: five lists (passage vectors, names/years FULLTEXT, fi article vectors, en/sv article
-  vectors, title mentions), top 50 per list (30 for article vectors), RRF with k = 60.
-- Top 8 passages, at most 2 per article, go to the model (2 is a starting value, not measured).
-- Model: Claude Opus 5.5, `effort: low`; a `.env` setting.
-- The answer is in the question's language; the sources stay in their own language.
-
-## What adding a feature later costs
-
-No idea in the feature pool in `tasks/plan.md` changes the core tables or the ask flow. They fall into four groups:
-
-| Group | Ideas | What gets added |
-| --- | --- | --- |
-| Queries over the loaded history | Edit-war radar, vandalism survival time, how the story grew, what changed since | Queries on `revert_event` and `article`, plus pages. No new data. |
-| Paragraphs over time | Contested-paragraph lens, trust badges, citation history | A `passage_history` table that tracks paragraph lifetimes across revisions. The biggest single addition; the core's `passage` table stays as it is. |
-| More embedding | Ask the past, meaning drift, three languages | More rows in `passage_vector` (old versions, or sv/en paragraphs). Same table, same index, more GPU time. |
-| Outside the database | Source check; extension; MCP server | Fetched web pages in their own table; or a thin client on the JSON API. |
-
-## Time-aware retrieval: MariaDB does the time (Phase 3, built)
-
-Added 2026-11-14 after a working pilot (results in `tasks/plan-a.md`, "Phase 3 pilot"). This is
-the brief's "both tracks" example: *"what did Wikipedia say about this in 2015, and what has
+This is the brief's "both tracks" example: *"what did Wikipedia say about this in 2015, and what has
 changed since?"* It is also the strongest answer to the rubric's "effective and creative use of
 MariaDB": the hard parts are done by the database, not by application code.
 
@@ -582,7 +510,7 @@ claimed"*. Finnish Civil War, asked in English as of 2007: the capture of Vyborg
 *400–800 Reds killed, 5,000–6,000 captured* to *500–800 killed, 12,000–15,000 captured*, with
 troop strengths added.
 
-## Cross-language gaps (built)
+## Cross-language gaps
 
 **The question:** what do English and Swedish Wikipedia say about a topic that the Finnish article
 does not, and did the Finnish article ever say it? Dataset S ships 5,254 English and 4,921
@@ -628,17 +556,21 @@ untouched and every query runs on L by swapping two table names (`rank(..., tabl
 | --- | --- | --- |
 | Passages | 1,545,854 from 568,416 articles, built in 63 s | 66,543 |
 | Embedding (bge-m3, Modal GPUs) | ~1 h (~420 passages/s) | 6.4 min |
-| Loading into the vector index | ~65–740 inserts/s, one writer: hours | minutes |
+| Loading into the vector index | ~50–740 inserts/s, one writer: hours | minutes |
 
-**Search, measured with the 37 eval questions** (`eval/scale.py`, `eval/evaluate.py --l`):
-*pending: the load finishes tonight; numbers at ~1.06M vectors first, then at 1.55M.*
+**Search, measured with the 37 eval questions** (`eval/scale.py`, `eval/evaluate.py --l`; load
+stopped at ~700k of L's 1.55M vectors for the measurement; details in
+[`eval/README.md`](../eval/README.md)):
 
-| Table | Vectors | recall@10 | index search (median) | exact scan | hit@5 / hit@10 |
+| Table | Vectors | recall@10 | index search (median / p95) | exact scan | hit@5 / hit@10 |
 | --- | --- | --- | --- | --- | --- |
-| S whole articles | 29,460 | | | | 65% / 78% |
-| M passages | 66,543 | 99.2% | 11–17 ms | | 92% / 95% (hybrid) |
-| M every version | 353,166 | | | | — |
-| L passages | 1.06M → 1.55M | | | | |
+| S whole articles | 29,460 | 99.2% | 17 / 127 ms | 55 ms | 63% / 77% (alone) |
+| M passages | 66,543 | 98.6% | 4.1 / 7.0 ms | 127 ms | 92% / 95% (five lists) |
+| M every version | 353,166 | *running* | | | — |
+| L passages | ~700,000 | *running* | | | 91% / 94% (five lists) |
+
+The fused search holds its hit rate from M to L; plain passage-vector search drops to 49% hit@5
+on L, because near-duplicate paragraphs from other articles crowd out the right one.
 
 ## MariaDB: what it costs
 
@@ -652,7 +584,7 @@ What we had to learn to make MariaDB do this; each one is a sentence in the pitc
   silently cut the fusion to the first list's 50 rows; the eval caught it.
 - **One writer at a time into a vector index.** Parallel loaders gave ~1.4× and then deadlocks
   and lock-wait timeouts; the loader retries a batch on both. Insert speed falls as the graph
-  grows (~740/s at the start, ~65/s past 600k vectors), so an index of millions loads for hours.
+  grows (~740/s at the start, ~50/s past 600k vectors), so an index of millions loads for hours.
 - **Size the caches, and leave room.** The vector-index cache (`mhnsw_max_cache_size`, default
   16 MB) and the InnoDB buffer pool decide whether inserts and searches hit the disk. Both resize
   live (`SET GLOBAL`). Raising them to 7 + 5 GB with the app running locked up the 16 GB server;
@@ -660,46 +592,14 @@ What we had to learn to make MariaDB do this; each one is a sentence in the pitc
 - **`COUNT(*)` on a vector table is slow** (it reads gigabytes): read progress from the loader's
   log instead. `docker compose restart` keeps the old settings; `up -d` re-reads `.env`.
 
-## Notes for the time features
+## Known limits and next steps
 
-From the review on 2026-11-13. None of these changes the base; they are the points to settle
-when `passage_history` and "ask the past" are built.
-
-- **Paragraph lifetimes.** `passage_history` holds one row per paragraph and lifetime: `page_id`,
-  `text_hash`, when it appeared and when it went. Load it as a system-versioned table with the
-  real edit times, like `article`, so that "the paragraphs of this article in 2010" is a
-  `FOR SYSTEM_TIME AS OF` query.
-- **No position in a lifetime row.** If position is stored, adding one paragraph near the top
-  "changes" every paragraph below it and the history fills with false edits. Show past articles
-  from `article`; search does not need the order.
-- **Old paragraph texts need a home.** `passage` holds today's paragraphs only, and its
-  `FULLTEXT` index covers only those. Old texts go in a plain table keyed by `text_hash` with its
-  own `FULLTEXT` index, next to `passage_vector`.
-- **The date filter comes after the vector search.** The index returns its nearest texts from all
-  years, and many are near-identical versions of one paragraph. Fetch about 200, join to the
-  paragraphs alive on the date, drop duplicates, keep 8. Time this early: a filtered vector
-  search fell back to a full scan (2 s) in the starter.
-- **Cite the version that was live.** An answer as of a date links to the article revision live
-  on that date, not to the revision where the paragraph first appeared.
-- **Keep the build cheap.** Split each old version into raw paragraphs and hash them first; clean
-  only the hashes not seen before. Embed only texts that stayed up for about a day or more, so
-  short-lived vandalism costs no GPU time. Count the distinct texts on the pilot articles before
-  running all 19,742.
-- **Evaluation.** Add 5 to 10 questions whose right answer differs by year, checked in the data.
-  They also serve as the demo script.
-- **Hero articles.** Check that the 3 hero articles have paragraphs that really changed before
-  building the page around them. Whether the name of the 1918 war was changed on Finnish
-  Wikipedia is not confirmed.
-
-## Open
-
-- Answer-level eval on new questions (paragraph found, citations faithful).
-- Improvement levers, to pick by that eval: translate the question to Finnish before searching
-  (the 2 remaining misses); a reranker; fewer passages for then-vs-now (speed).
-- The per-article cap (2) and the names/years keyword rule: confirm on new questions.
-- Dataset L: finish the load, fill in "Scale: S → M → L"; if search on L is weak, two-stage
-  (lead passages first, then passages of the top articles) before a reranker.
-- A small model as judge for the cross-language *partly* label, if it goes into the demo.
-- Decided since: model (Claude Opus 5.5, Anthropic credits), cleaner (the SVT starter's, extended;
-  passages read cleanly), highlight (time-aware retrieval, built), two-stage time search (built,
-  merged with the global one), cross-language search (built: en/sv article vectors + titles).
+- **Search misses** English questions that name no article (*"Who led the Senate that declared
+  Finland independent?"*). Lever: translate the question to Finnish before searching (one small
+  model call).
+- **Answers** can miss a fact whose total sits in a passage the search didn't rank (eval: Red
+  prison-camp deaths). Levers: a reranker over the top 50, or more passages per article.
+- **Cross-language labels** use fixed distance cut-offs: *covered* and *missing* are reliable,
+  *partly* is the grey zone. A small model could judge only the 8,779 *partly* pairs (~$3–5 once).
+- **Dataset L** is loaded to ~700k of 1.55M vectors; the rest loads at ~50 inserts/s (hours).
+- **Reverts** are exact-text matches (sha1): partial reverts and rewordings are missed.

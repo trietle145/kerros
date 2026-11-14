@@ -104,7 +104,7 @@ def rank(vector, question="", k=8, per_article=2, lists=ALL, names_only=True,
 
 
 def search(question, k=8, as_of=None, per_article=2):
-    """The contract in tasks/plan.md. as_of is not used here: dated questions go to app.timeqa."""
+    """The contract in docs/frontend.md (/ask). as_of is not used here: dated questions go to app.timeqa."""
     return rank(embed([question])[0], question, k, per_article)
 
 

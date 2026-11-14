@@ -1,7 +1,7 @@
 """The article graph through time (owner: A, backend): which articles an article links to, and how
 those links grew. Edges are real wiki links parsed from the raw wikitext (deterministic, every
-line traceable to an edit); vectors only break ties when ranking neighbours. Plan and contract:
-tasks/plan-graph.md (b-search-app) and docs/frontend.md (frontend). The page is B's.
+line traceable to an edit); vectors only break ties when ranking neighbours. Contract:
+docs/frontend.md (API). The page is B's.
 
     GET /api/graph/<page_id>      nodes (main + up to 19 linked neighbours), links today and per year
     python -m app.graph           # self-check: parser rules, then the index and one graph (needs the DB)

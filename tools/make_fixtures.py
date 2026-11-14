@@ -1,7 +1,7 @@
 """Fixtures for the frontend (app/static/fixtures/): graph-<id>.json, path-<id>.json and
 related*.json. Real data, read from MariaDB with SELECT statements only. Follows
-tasks/plan-graph.md (G1 link index, G2 node choice, G4 yearly snapshots, G5 heuristic path) and
-the parsing rules in docs/DATA_NOTES.md, so the live /api/graph can return the same shapes.
+the same link parsing and node choice as app/graph.py, so the live /api/graph returns the same
+shapes (contract: docs/frontend.md).
 
     .venv\\Scripts\\python.exe tools\\make_fixtures.py            # heroes + every article in related*.json
     .venv\\Scripts\\python.exe tools\\make_fixtures.py 440 8617   # graph + path for these page_ids only
@@ -37,7 +37,7 @@ def namespaced(title):
 
 
 def parse_links(text):
-    """Wikitext -> the linked titles, normalised (DATA_NOTES.md, parsing rules 1-4)."""
+    """Wikitext -> the linked titles, normalised (the same rules as app/graph.py)."""
     out = set()
     for m in LINK.finditer(text):
         t = m.group(1).replace("_", " ").strip().lstrip(":").strip()
@@ -113,7 +113,7 @@ def leads(cur, ids):
 
 
 def graph(cur, idx, main):
-    """The /api/graph/<page_id> JSON (plan-graph.md, "API contract")."""
+    """The /api/graph/<page_id> JSON (docs/frontend.md)."""
     ids, relation = choose(cur, idx, main)
     lead = leads(cur, ids)
     cur.execute("SELECT page_id, YEAR(MIN(row_start)) FROM article FOR SYSTEM_TIME ALL "
@@ -194,7 +194,7 @@ if __name__ == "__main__":
     n_links = sum(map(len, idx.out.values()))
     print(f"link index: {len(idx.out):,} articles, {n_links:,} links, {len(idx.redirect)} redirects, "
           f"{time.time() - t:.1f} s")
-    assert 19_500 < len(idx.out) < 19_700 and 130_000 < n_links < 145_000      # DATA_NOTES: 19,600 / 138,730
+    assert 19_500 < len(idx.out) < 19_700 and 130_000 < n_links < 145_000      # measured: 19,600 / 138,730
     assert 1256 in idx.out[8295]                                              # Mainila -> Talvisota
 
     targets = [int(a) for a in sys.argv[1:]]
