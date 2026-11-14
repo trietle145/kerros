@@ -9,9 +9,11 @@ from urllib.parse import quote
 
 from flask import Blueprint, request
 
+from app import xlang
+from app.embed import embed
 from app.history import stats
 from app.llm import RefusedError, complete
-from app.search import search
+from app.search import rank
 
 bp = Blueprint("answer", __name__)
 
@@ -67,20 +69,24 @@ def answer(question, as_of=None):
     from app import timeqa
     if r := timeqa.route(question, as_of):
         return timeqa.answer(question, r)
-    sources = search(question, k=8)
+    vector = embed([question])[0]          # once: search and the other-Wikipedias block share it
+    sources = rank(vector, question, k=8)
     if not sources:
         return {"question": question, "kind": "plain", "sources": [],
                 "answer": [{"text": "No passages found for this question.", "cites": []}]}
     numbered = "\n\n".join(f"[{n}] {s['title']}" + (f" / {s['heading']}" if s["heading"] else "") +
                            f"\n{s['text']}" for n, s in enumerate(sources, 1))
     text = complete(SYSTEM, f"Passages:\n\n{numbered}\n\nQuestion: {question}")
-    counts = stats(list({s["page_id"] for s in sources}))
+    pages = list({s["page_id"] for s in sources})
+    counts, other = stats(pages), xlang.langs(pages)
     lines = parse(text, len(sources))
     sources = [{"n": n, **s, "url": f"https://fi.wikipedia.org/?oldid={s['rev_id']}",
                 "deep_url": deep_url(s["rev_id"], s["heading"], s["text"]),
-                **counts[s["page_id"]]} for n, s in enumerate(sources, 1)]
+                **counts[s["page_id"]], "langs": other.get(s["page_id"], [])} for n, s in enumerate(sources, 1)]
     renumber(lines, sources)
-    return {"question": question, "kind": "plain", "answer": lines, "sources": sources}
+    cited = [s for s in sources if any(s["n"] in a["cites"] for a in lines)]
+    return {"question": question, "kind": "plain", "answer": lines, "sources": sources,
+            "xlang": xlang.adds(vector, list({s["page_id"] for s in cited}), [s["passage_id"] for s in cited])}
 
 
 @bp.route("/ask", methods=["GET", "POST"])

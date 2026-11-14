@@ -89,7 +89,16 @@ function render(res, q, animate) {
     ? part(`In ${year || "the past"} Wikipedia said`, answer.filter(isThen)) + part("What changed since", answer.filter(a => !isThen(a)))
     : part("", answer)) +
     (tvn && res.diffs?.length ? `<section class="diffs"><h2 class="kicker">What changed in the text
-       <span class="diff-key"><del>removed</del><ins>added</ins></span></h2>${res.diffs.map(diff).join("")}</section>` : "");
+       <span class="diff-key"><del>removed</del><ins>added</ins></span></h2>${res.diffs.map(diff).join("")}</section>` : "") +
+    // what English / Swedish Wikipedia add (app/xlang.py): only when the backend found something
+    (!tvn && res.xlang?.length ? `<section class="xl-adds"><h2 class="kicker">Other Wikipedias add</h2>
+       <p class="xl-note">What English and Swedish Wikipedia say about this that the Finnish article does not.</p>${res.xlang.map(x => {
+        const lang = x.lang === "sv" ? "sv" : "en", name = lang === "sv" ? "Swedish" : "English";
+        return `<div class="xl-add"><span class="xl-lang">${lang.toUpperCase()}</span><div>
+          <p class="xl-where" lang="${lang}">${esc(x.title)} › ${esc(x.heading || "Lead")}</p>
+          <p class="xl-text" lang="${lang}">${esc(x.text)}</p>
+          <a href="${safeUrl(x.url)}" target="_blank" rel="noopener">Read on ${name} Wikipedia ↗</a></div></div>`;
+      }).join("")}</section>` : "");
 
   const card = (s, j) => {
     const h = s.health, key = `src-${s.n}`;
@@ -103,7 +112,9 @@ function render(res, q, animate) {
       <p class="src-meta">${s.edits != null ? `<span class="num">${num(s.edits)} edits · ${num(s.reverts || 0)} reverts</span>` : ""}${!h ? "" :
         (h.live_since ? `<span class="pill" title="This passage has stood in the article since ${esc(h.live_since)}">live since ${esc(h.live_since.slice(0, 4))}</span>` : "") +
         (h.rewrites != null ? `<span class="pill num">${num(h.rewrites)} rewrite${h.rewrites === 1 ? "" : "s"}</span>` : "") +
-        (h.contested ? `<span class="pill pill-warn" title="This passage is often reverted">contested</span>` : "")}</p>
+        (h.contested ? `<span class="pill pill-warn" title="This passage is often reverted">contested</span>` : "")}${!s.langs ? "" :
+        s.langs.length ? `<span class="pill pill-xl" title="The same article exists on ${s.langs.map(l => l === "sv" ? "Swedish" : "English").join(" and ")} Wikipedia">also in ${s.langs.map(l => l === "sv" ? "Swedish" : "English").join(" and ")}</span>`
+                       : `<span class="pill" title="No English or Swedish article on this topic">only in Finnish</span>`}</p>
       <div class="src-actions">
         <a class="btn btn-quiet" href="${safeUrl(s.deep_url || s.url)}" target="_blank" rel="noopener" title="The exact version this text came from, scrolled to this passage">Open on Wikipedia ↗</a>
         <a class="btn btn-quiet" href="${history}" data-go="${key}">History</a>

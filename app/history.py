@@ -12,6 +12,7 @@ from math import sqrt
 
 from flask import Blueprint, render_template, request
 
+from app import xlang
 from app.db import connect
 from scripts.wikitext import clean
 
@@ -108,6 +109,23 @@ def _sections(blocks):
     return out
 
 
+def _xlang(page_id):
+    """The other-Wikipedias panel: per language, runs of paragraphs under one heading, each section
+    shown with its most notable label (a gap outranks a match)."""
+    order = ("missing", "lost", "elsewhere", "partly", "covered")
+    out = {}
+    for lang, L in xlang.coverage(page_id).items():
+        secs = []
+        for it in L["items"]:
+            if not secs or secs[-1]["heading"] != it["heading"]:
+                secs.append({"heading": it["heading"], "items": []})
+            secs[-1]["items"].append(it)
+        for sec in secs:
+            sec["first"] = next(i for l in order for i in sec["items"] if i["label"] == l)
+        out[lang] = {**L, "sections": secs, "total": len(L["items"])}
+    return out
+
+
 @bp.get("/article/<int:page_id>")
 def article(page_id):
     """The article as it stood on ?as_of=YYYY-MM-DD[THH:MM[:SS]] (default: now). Page by default,
@@ -133,7 +151,7 @@ def article(page_id):
         chart=_chart(months, (moment - timedelta(seconds=1)).strftime("%Y-%m")),
         edits=sum(m["edits"] for m in months), reverts=sum(m["reverts"] for m in months),
         cleanup=sum(m["cleanup"] for m in months), first_month=months[0]["month"],
-        today=datetime.now(UTC).date().isoformat())
+        today=datetime.now(UTC).date().isoformat(), xlang=_xlang(page_id))
 
 
 @bp.get("/article/<int:page_id>/timeline")
