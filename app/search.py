@@ -1,10 +1,13 @@
 """Retrieval (owner: A, backend): question -> the passages that answer it.
 
-Hybrid: three ranked lists fused by reciprocal rank fusion (RRF, k = 60) in one SQL statement
+Hybrid: four ranked lists fused by reciprocal rank fusion (RRF, k = 60) in one SQL statement
 (docs/architecture.md, "Chunking, embedding and keyword search"):
   vec  nearest passage vectors                          (meaning, cross-language)
   ft   FULLTEXT in boolean mode with Finnish prefix terms (names, years, rare words)
   art  nearest whole-article vectors (dataset S), each contributing its article's lead passage
+  xl   nearest English/Swedish article vectors (dataset S), mapped to their Finnish article by
+       Wikidata id (article_langlink), each contributing that article's lead passage: an English
+       question meets an English article first, then crosses over
 Each vector search stays in its own subquery so MariaDB uses the vector index. No FULL OUTER JOIN
 in MariaDB, so the lists are combined with UNION ALL + GROUP BY.
 
@@ -35,7 +38,13 @@ LISTS = {
               FROM (SELECT page_id, VEC_DISTANCE_COSINE(embedding, ?) AS d
                     FROM article_vector WHERE lang = 'fi' ORDER BY d LIMIT 30) v
               JOIN passage p ON p.page_id = v.page_id AND p.position = 0""",
+    "xl": """SELECT p.passage_id, ROW_NUMBER() OVER (ORDER BY v.d) AS r
+             FROM (SELECT lang, page_id, VEC_DISTANCE_COSINE(embedding, ?) AS d
+                   FROM article_vector WHERE lang IN ('en', 'sv') ORDER BY d LIMIT 30) v
+             JOIN article_langlink l ON l.lang = v.lang AND l.page_id = v.page_id
+             JOIN passage p ON p.page_id = l.fi_page_id AND p.position = 0""",
 }
+ALL = ("vec", "ft", "art", "xl")
 
 
 def fulltext_terms(question, names_only=False):
@@ -56,7 +65,7 @@ def fulltext_terms(question, names_only=False):
     return " ".join(dict.fromkeys(terms))
 
 
-def rank(vector, question="", k=8, per_article=2, lists=("vec", "ft", "art"), names_only=True):
+def rank(vector, question="", k=8, per_article=2, lists=ALL, names_only=True):
     """Top k passages, at most per_article from one article (None = no cap).
     ponytail: per_article=2 is a starting value, not measured; the eval decides."""
     terms = fulltext_terms(question, names_only) if "ft" in lists else ""
