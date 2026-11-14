@@ -73,6 +73,9 @@
 .gt-counts b { color: var(--g-text); font-weight: 600; }
 
 .gt-track { flex: 1 1 15rem; min-width: 0; }
+.gt-speed { flex: none; min-height: 2rem; padding: 0 .4rem; border: 1px solid var(--g-border); border-radius: var(--g-radius);
+  background: transparent; color: var(--g-text); font: inherit; font-size: .8125rem; cursor: pointer; }
+.gt-speed:disabled { opacity: .4; cursor: default; }
 /* one bar per year, centred on the slider thumb's stops (thumb 18px, bar 4px -> 7px inset) */
 .gt-spark { display: flex; align-items: flex-end; justify-content: space-between; height: 1.75rem; padding: 0 7px; }
 .gt-spark i { width: 4px; height: max(2px, calc(var(--h) * 100%)); border-radius: 2px 2px 0 0; background: var(--g-border);
@@ -117,9 +120,8 @@
 .gp h2 { margin: 0 0 .5rem; font: 600 1.4rem/1.2 var(--font-serif, inherit); letter-spacing: -.01em; overflow-wrap: anywhere; text-wrap: balance; }
 :where(.gp) p { margin: 0; }
 .gp a:not(.g-btn) { color: var(--g-accent); }
-.gp-empty p { color: var(--g-muted); line-height: 1.55; }
-.gp-empty strong { color: var(--g-text); }
-.gp-empty .gp-tip { margin-top: .75rem; font-size: .875rem; }
+.gp-body:has(> .gp-empty:last-child) { display: none; }   /* nothing selected: only the learning path */
+.gp:has(> .gp-body > .gp-empty:last-child) .gp-path { padding-top: 0; border-top: 0; }
 
 .gp-rel { display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; color: var(--g-muted); font-size: .8125rem; }
 .gp-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .75rem; color: var(--g-muted); font-size: .8125rem; }
@@ -137,8 +139,8 @@
 
 .gp-path { padding-top: 1.1rem; border-top: 1px solid var(--g-border); }
 .gp-path-head { display: flex; align-items: baseline; justify-content: space-between; gap: .6rem; }
-.gp-path-head h3 { margin: 0; font-size: 1rem; }
-.gp-path-what { margin: .2rem 0 .75rem; color: var(--g-muted); font-size: .8125rem; }
+.gp-path-what { margin: 0 0 .75rem; color: var(--g-muted); font-size: .8125rem; }
+.gp-path-what:empty { display: none; }
 .gp-path-wait, .gp-path-err { color: var(--g-muted); font-size: .875rem; }
 .gp-path-err { margin-top: .5rem; }
 .gp-steps { list-style: none; margin: 0 -.5rem; padding: 0; }
@@ -190,9 +192,7 @@
   .g-why { display: none; }
   .gp { gap: .7rem; }
   .gp h2 { font-size: 1.2rem; }
-  .gp-empty h2, .gp-empty .gp-long, .gp-empty .gp-tip, .gp-path-what { display: none; }   /* nothing selected: stay small, the graph is behind */
-  .gp-empty .gp-pitch { display: inline-block; font-size: .875rem; }
-  .gp-empty .gp-pitch::first-letter { text-transform: uppercase; }
+  .gp-path-what { display: none; }
   .gp-lead { -webkit-line-clamp: 3; line-clamp: 3; }
   .gp-path { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .75rem; padding-top: .7rem; }
   .gp-path-head { flex: 1; }

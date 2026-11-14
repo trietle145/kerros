@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Ask · Wikipedia trust tool{% endblock %}
+{% block title %}Ask · Kerros{% endblock %}
 {# blocking="render": a cached answer is drawn before the first paint, so coming back from the
    graph or history page shows the answer at once and the page transition has something to morph. #}
 {% block head %}<script type="module" src="{{ url_for('static', filename='ask.js') }}" blocking="render"></script>{% endblock %}
@@ -8,8 +8,7 @@
 <div class="ask" id="ask" data-state="landing">
   <section class="hero">
     <p class="kicker">19,742 articles on Finnish history · every version since 2003</p>
-    <h1>Ask Wikipedia. See where every sentence <em>comes from</em>.</h1>
-    <p>Each sentence of the answer links to the paragraph behind it, and each paragraph opens its own history: what it said then, and what has changed since.</p>
+    <h1>Ask <em>Kerros</em>.</h1>
   </section>
 
   <form class="ask-form" id="ask-form" action="{{ url_for('ask.index') }}" method="get" role="search" novalidate>
@@ -20,9 +19,11 @@
       <button class="btn btn-primary" type="submit">Ask <kbd aria-hidden="true">↵</kbd></button>
     </div>
     <div class="ask-opts">
-      <label for="as-of">Optional: as Wikipedia stood on</label>
+      <label for="as-of">See Wikipedia as it was on</label>
       <input id="as-of" name="as_of" type="date" min="2003-01-01" max="2026-10-01">
       <button class="linkish" id="as-of-clear" type="button" hidden>back to today</button>
+      <label class="scope" title="Search the current text of every Finnish Wikipedia article (dataset L) instead of the 19,742 history articles">
+        <input type="checkbox" id="scope-l" name="scope" value="l"> All 568k articles</label>
     </div>
     {% if request.args.get('mock') %}<input type="hidden" name="mock" value="{{ request.args.get('mock') }}">{% endif %}
   </form>
@@ -31,20 +32,28 @@
 
   <section class="examples" aria-labelledby="ex-head">
     <h2 class="kicker" id="ex-head">Try one</h2>
-    <ul id="examples">
-      {# placeholders until A sends the demo questions #}
-      <li><button class="chip" type="button" lang="fi">Milloin talvisota alkoi?</button></li>
-      <li><button class="chip" type="button" lang="fi">Mitkä olivat Mainilan laukaukset?</button></li>
-      <li><button class="chip" type="button" lang="fi">Miksi Suomen sisällissota syttyi?</button></li>
-      <li><button class="chip" type="button" lang="fi" data-q="Mitä Wikipedia sanoi sisällissodan punavangeista vuonna 2007, ja mitä on muuttunut?"><span class="pill pill-accent" lang="en">then vs now</span>Mitä Wikipedia sanoi punavangeista vuonna 2007, ja mitä on muuttunut?</button></li>
-    </ul>
+    {# a slow loop; ask.js appends an aria-hidden, untabbable copy of the list so it wraps seamlessly #}
+    <div class="marquee">
+      <ul id="examples">
+        <li><button class="chip" type="button" lang="fi" data-q="Mitä Wikipedia sanoi sisällissodan punavangeista vuonna 2007, ja mitä on muuttunut?"><span class="pill pill-accent" lang="en">then vs now</span>Mitä Wikipedia sanoi punavangeista vuonna 2007, ja mitä on muuttunut?</button></li>
+        <li><button class="chip" type="button" lang="fi">Milloin talvisota alkoi?</button></li>
+        <li><button class="chip" type="button" lang="fi">Mitkä olivat Mainilan laukaukset?</button></li>
+        <li><button class="chip" type="button" lang="fi">Miksi Suomen sisällissota syttyi?</button></li>
+        <li><button class="chip" type="button" lang="fi">Milloin Suomi itsenäistyi?</button></li>
+        <li><button class="chip" type="button" lang="fi">Kuka oli Urho Kekkonen?</button></li>
+        <li><button class="chip" type="button" lang="fi">Mikä oli Lapin sota?</button></li>
+      </ul>
+    </div>
   </section>
 
   <section class="results" id="results" aria-label="Answer">
     <div class="status" id="status" role="status"></div>
-    <div class="results-grid">
+    <div class="rewind" id="rewind" hidden></div>
+    <div class="answer-wrap">
       <div class="answer" id="answer"></div>
-      <aside class="sources" id="sources" aria-label="Sources"></aside>
+      {# one shared popover: a short preview on hover/focus of a [n] marker, the full source card on click #}
+      <div class="cite-pop" id="cite-pop" tabindex="-1" hidden></div>
+      <div class="cite-scrim" id="cite-scrim" hidden></div>
     </div>
     <section class="diffs" id="diffs" hidden></section>
     <section class="related" id="related" hidden></section>
