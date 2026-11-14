@@ -3,7 +3,7 @@
 // Exception: ask() never falls back to a fixture unless ?mock=1; a failed answer shows its error.
 // Every result carries _source: "live" | "fixture"; a fixture used because the live call failed
 // also carries _error (why). Other 4xx (400 empty question, 422 model declined) reject with the
-// JSON's error message. Call chains and backend gaps: docs/frontend-connections.md.
+// JSON's error message. Routes and fallbacks: docs/frontend.md.
 
 const FIXTURES = new URL("./fixtures/", import.meta.url);
 const MOCK = new URLSearchParams(location.search).get("mock") === "1";
@@ -54,7 +54,7 @@ export function ask(q, asOf, { signal, scope } = {}) {
 export const related = q => get(`/api/related?q=${enc(q || "")}`,
                                 [dated(q) ? "related-then-vs-now.json" : "related.json"]);
 
-// -> {main, nodes, years, snapshots} (plan-graph.md); check .main, a fallback may be another article
+// -> {main, nodes, years, snapshots} (docs/frontend.md, /api/graph); check .main, a fallback may be another article
 export const graph = pageId => get(`/api/graph/${enc(pageId)}`, graphFixtures("graph", pageId));
 
 // -> {path: [{id, why}], source: "llm" | "heuristic"}

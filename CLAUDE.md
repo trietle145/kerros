@@ -1,7 +1,7 @@
 # Project: Wikipedia trust tool on MariaDB (Junction hackathon, MariaDB challenge)
 
 > Updated 2026-11-14 evening. Items marked **OPEN** are not decided yet.
-> The plan and task list: `tasks/plan.md`.
+> Plans, task lists and research: the `planning` branch (`tasks/`, `docs/research/`).
 
 ## Goal
 Build a Wikipedia tool that is missing or underused, with MariaDB at the core. The topic is free
@@ -94,19 +94,20 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
   roadmap, `SERVER.md`); `translate` is a removed experiment (Claude translation: too costly).
   Create `.venv` first (`pip install -r requirements.txt`); data under `data/` (never committed).
 
-## Phases (tasks with acceptance criteria in `tasks/plan.md`)
+## Phases (tasks with acceptance criteria: `tasks/plan.md` on `planning`)
 Split between two people (revised again 2026-11-14): **A = all backend** (data, search, answers,
 time-aware answers, history, graph data, L at scale), **B = all frontend** (every page, the look,
-demo polish). The JSON API is the contract between them: `docs/frontend.md` (on `frontend`).
+demo polish). The JSON API is the contract between them: `docs/frontend.md`.
 1. Get running (done): M loaded, passages built, embedded on Modal and loaded, S vectors loaded.
 2. The base (done): cited answers (hybrid, 92% top-5), time views (article as of a date, timeline
    with reverts), History button joining them.
 3. The highlight (built): then-vs-now answers; cross-language gaps (`/compare/<page_id>`, "Other
    Wikipedias add" on answers); graph through time (B's page on `/api/graph`).
-4. Scale numbers on L (load running), public hosting, polish, demo rehearsal (**OPEN**).
+4. Scale numbers on L (measured at ~700k vectors), evals (`eval/README.md`), public hosting,
+   polish, demo rehearsal (**OPEN**).
 
 ## Architecture (docs/architecture.md)
-- Core = cited Q&A + article summaries. Retrieval (decided): hybrid, paragraph vectors plus
+- Core = cited Q&A. Retrieval (decided): hybrid, paragraph vectors plus
   FULLTEXT fused by rank in one SQL statement. Build vector-only first, then add the keyword half.
 - Tables: `article` (versioned, every revision), `passage` (current paragraphs, plain table, keeps
   `page_id`, `rev_id`, `heading`, `text_hash`, FULLTEXT on text), `passage_vector` (keyed by
@@ -123,10 +124,7 @@ demo polish). The JSON API is the contract between them: `docs/frontend.md` (on 
 - Keep these three choices: vectors keyed by text hash (old versions can get vectors later);
   every paragraph keeps its source `rev_id` (citations link to `?oldid=`); the full history is
   loaded even though the core reads only the newest revision.
-- Feature ideas (edit wars, vandalism, cross-language, contradictions...) live in `tasks/plan.md`
-  (Phase 3) and add tables next to these; they must not require changing the core.
-- Points to settle when the time features are built are in docs/architecture.md, "Notes for the
-  time features".
+- New features add tables next to these; they must not require changing the core.
 
 ## Data (from github.com/MariaDB/mariadb-wikipedia-datasets, releases `*-2026-10`)
 - **S**: History of Finland, current versions. 19,285 fi, 4,921 sv, 5,254 en articles. Clean
@@ -178,11 +176,12 @@ demo polish). The JSON API is the contract between them: `docs/frontend.md` (on 
   settings, `up -d` re-reads `.env`. `COUNT(*)` on a vector table is slow: read loader logs.
 
 ## Project docs
-- `tasks/plan.md`: the shared plan (idea, decisions, ownership, contracts, feature pool, risks).
-  Per-person tasks: `tasks/plan-a.md` (branch `a-data-time`), `tasks/plan-b.md` (`b-search-app`).
-- `docs/architecture.md`: the base (cited Q&A and time views) and what the time features add.
-- `docs/research/wikipedia-problems.md`: problems worth solving, ranked, with sources.
-- `docs/research/edit-wars.md`: edit wars and vandalism, detection methods, 8 feature ideas.
+- `README.md`: what the app does, headline scores, how to run it.
+- `docs/architecture.md`: design choices with evidence, tables, search, time features,
+  cross-language gaps, scale, MariaDB lessons, known limits.
+- `docs/frontend.md`: pages, JSON API contract, `api.js` fallback behaviour.
+- `eval/README.md`: every score (search on M and L, answers, vector index scale) and the method.
+- On `planning` only: `tasks/plan.md`, `tasks/plan-a.md`, `docs/research/`, old frontend notes.
 
 ## Current state (2026-11-14 evening)
 - **The shared server is the real database** (`root@135.181.8.213`, SSH alias `lakebandits` on
@@ -199,17 +198,16 @@ demo polish). The JSON API is the contract between them: `docs/frontend.md` (on 
   server in tmux `web` via gunicorn: start/restart `bash scripts/restart_app.sh`, view through
   `ssh -N -L 5000:127.0.0.1:5000 lakebandits` → http://127.0.0.1:5000. The server's repo copy is
   updated from a git bundle (`git bundle create … --all`, scp, `git fetch` there; repo private).
-- **L load (running 2026-11-14):** `/root/l_pipeline.sh` (one loader, memory guard, then
-  `eval/scale.py` + `eval/evaluate.py --l`); `/root/l_stop_at_1m.sh` stops it after shard 1
-  (~1.06M vectors), measures to `data/l/measure_1m.log`, then resumes overnight (log
-  `data/l/pipeline.log`). Rerunning `bash /root/l_pipeline.sh` resumes (skips loaded rows). Keep
-  the app off the server while it loads. Results go into docs/architecture.md, "Scale: S → M → L".
+- **L load (stopped 2026-11-14 at ~700k of 1.55M vectors, for measuring):** rerun
+  `bash /root/l_pipeline.sh` on the server to resume (skips loaded rows; one loader, memory guard;
+  ~50 inserts/s at this size, so hours). Keep the app off the server while it loads. Numbers:
+  `eval/README.md` and docs/architecture.md, "Scale: S → M → L".
 - Loading bge-m3 needs ~5 GB free memory; short of it, it fails with misleading errors. The first
   question after an app restart takes ~13 s (model load); gunicorn warms it at start.
 - `.env.example` lists every setting; copy to `.env` (git-ignored) and fill in.
-- Next (A): L numbers into the docs; public hosting (Caddy + password); answer-level eval on new
-  questions (also the demo script); translate-before-search for the 2 remaining misses if needed;
-  a small model as judge for the cross-language "partly" label if it goes into the demo.
+- Next (A): public hosting (Caddy; per-visitor limit on model calls on top of the daily cap);
+  translate-before-search for the 2 remaining search misses if needed; a small model as judge for
+  the cross-language "partly" label if it goes into the demo.
 
 ## Coding style
 - Use the `ponytail` skill (level full) for every coding task: the smallest code that works,
