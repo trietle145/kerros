@@ -109,6 +109,7 @@ def answer(question, r):
     """A routed time question -> the /ask JSON with kind "then_vs_now" (docs/frontend.md)."""
     from app.answer import deep_url, parse   # here, not at the top: answer.py imports this module
     from app.history import stats
+    from app.langlinks import other_languages
     from app.llm import complete
     with closing(connect()) as con:
         cur = con.cursor()
@@ -147,6 +148,7 @@ def answer(question, r):
             "answer": parse(text, len(sources)) if sources else
             [{"text": "No passages from that date were found for this question.", "cites": []}],
             "sources": [{**s, "deep_url": deep_url(s["rev_id"], s["heading"], s["text"]),
+                         "other_langs": other_languages(s["page_id"]),
                          **counts[s["page_id"]]} for s in sources], "diffs": diffs}
 
 

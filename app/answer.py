@@ -5,11 +5,13 @@ these JSON routes and never touches the database. Contract: docs/frontend.md, "A
     python -m app.answer         # self-check: 3 questions (fi, en, sv), citations validated (~$0.1)
 """
 import re
+from functools import lru_cache
 from urllib.parse import quote
 
 from flask import Blueprint, request
 
 from app.history import stats
+from app.langlinks import other_languages
 from app.llm import RefusedError, complete
 from app.search import search
 
@@ -63,7 +65,36 @@ def answer(question, as_of=None):
     return {"question": question, "kind": "plain", "answer": parse(text, len(sources)),
             "sources": [{"n": n, **s, "url": f"https://fi.wikipedia.org/?oldid={s['rev_id']}",
                          "deep_url": deep_url(s["rev_id"], s["heading"], s["text"]),
+                         "other_langs": other_languages(s["page_id"]),
                          **counts[s["page_id"]]} for n, s in enumerate(sources, 1)]}
+
+
+TRANSLATE = """Translate the Finnish Wikipedia text you are given into English.
+Keep names, numbers, dates and the paragraph breaks exactly. Output only the translation."""
+MAX_TRANSLATE = 4000      # characters: one passage is at most ~2,500
+
+
+@lru_cache(maxsize=2048)
+def translate(text):
+    """Finnish passage -> English, by the model; cached, so a passage is paid for once per process."""
+    return complete(TRANSLATE, text, effort="low").strip()
+
+
+@bp.post("/api/translate")
+def api_translate():
+    """The fallback behind the frontend's Translate button when the browser has no on-device
+    translator. Body: {"text": "..."} -> {"translation": "...", "engine": "claude"}."""
+    text = ((request.get_json(silent=True) or {}).get("text") or "").strip()
+    if not text:
+        return {"error": "text is required"}, 400
+    if len(text) > MAX_TRANSLATE:
+        return {"error": f"text is longer than {MAX_TRANSLATE} characters"}, 413
+    try:
+        return {"translation": translate(text), "engine": "claude"}
+    except RefusedError as e:
+        return {"error": str(e)}, 422
+    except Exception as e:
+        return {"error": f"translation failed: {type(e).__name__}: {e}"}, 500
 
 
 @bp.route("/ask", methods=["GET", "POST"])

@@ -14,6 +14,7 @@ from flask import Blueprint
 
 from app.db import connect
 from app.history import stats
+from app.langlinks import other_languages
 
 bp = Blueprint("graph", __name__)
 
@@ -122,7 +123,8 @@ def graph(page_id):
             "nodes": [{"id": q, "title": ix["title"][q], "relation": relation.get(q, "main"),
                        "lead": (lead.get(q) or "")[:300], "rev_id": rev.get(q), "created": created.get(q),
                        "edits": counts[q]["edits"], "reverts": counts[q]["reverts"],
-                       "url": f"https://fi.wikipedia.org/?oldid={rev.get(q)}"} for q in nodes],
+                       "url": f"https://fi.wikipedia.org/?oldid={rev.get(q)}",
+                       "other_langs": other_languages(q)} for q in nodes],
             "years": list(range(first, last + 1)), "snapshots": snapshots,
             "outside": ix["outside"].get(page_id, [])[:30]}
 
