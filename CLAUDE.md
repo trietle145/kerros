@@ -49,11 +49,16 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
   searches. Defaults (M=6) found only 79% of the true top 10. Re-measure recall with
   `index_recall.py` when the number of vectors changes, but start from these values.
 - Answer-writing model: Claude API ($20 per person) or Gemini, kept as a setting in `.env`.
-- **One shared database**, owned by person A: a cloud machine (Verda credits) running
-  `docker-compose.yml`, datasets downloaded straight onto it, both people connect over Tailscale
-  with their own logins. Port 3306 is never opened to the internet (`DB_BIND` = Tailscale IP).
-  Fallback host: A's PC with the data on D:. Embedding runs on a GPU for about an hour (Modal or
-  Verda). Nobody else loads the big data; a ~20-article local copy is optional.
+- **Hosting (OPEN).** Now: MariaDB runs locally in Docker on A's PC; since M loads in ~12 min,
+  each person can run their own local copy for development (share only the embedded vectors as a
+  file). Leading option for the team and the demo: **one always-on rented CPU server** (4 vCPU,
+  16 GB RAM, 60 GB disk; Verda credits if CPU-only machines exist, else Hetzner/DigitalOcean, or
+  MariaDB's own cloud if the mentors offer it) running `docker-compose.yml` with MariaDB plus,
+  once it exists, the Flask app and Caddy for public HTTPS. Data downloaded and loaded on the
+  server. MariaDB is never public: the app reaches it inside Docker, the team over Tailscale
+  (`DB_BIND` = Tailscale IP), each with their own login. Deploy = `git pull && docker compose up
+  -d --build`. Embedding all paragraphs runs once on a GPU (Modal or Verda); questions are
+  embedded on the server's CPU.
 - Working habits on the PC: planning work goes on the `planning` branch, create `.venv` first,
   data under `data/` (never committed).
 

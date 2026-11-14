@@ -34,12 +34,11 @@ where editors reverted each other.
 | Vector index | Fixed, recommended by MariaDB: `M=16 DISTANCE=cosine` on every vector index, `SET mhnsw_ef_search = 80` on every search connection. Defaults found only 79% of the true top 10. |
 | Answer model | Claude API ($20 per person) or Gemini, read from `.env`. |
 | S vectors | Loaded as shipped, for whole-article search and the sv/en articles. |
-| Database | **One** shared MariaDB, owned by A, on a cloud machine (Verda credits, CPU-only if offered), run with `docker-compose.yml`. Datasets downloaded straight onto it. Both reach it over Tailscale with their own logins; port 3306 is never open to the internet. Fallback host: A's PC with the data on D:. B never loads the big data; a small local copy (~20 articles, same compose file) is optional. |
+| Hosting (**open**) | **Now:** MariaDB in Docker on A's PC (M loaded); local copies per person are cheap since M loads in ~12 min. **Leading option:** one always-on rented CPU server (4 vCPU, 16 GB RAM, 60 GB disk; Verda if CPU-only machines exist, else Hetzner/DigitalOcean, or MariaDB's own cloud if the mentors offer it) running `docker-compose.yml`: MariaDB now, plus the Flask app and Caddy (public HTTPS) once the app exists. MariaDB is never public: the app reaches it inside Docker, the team over Tailscale with their own logins. Deploy = `git pull && docker compose up -d --build`. |
 | GPU | Embedding runs on a GPU for about an hour: Modal ($100 per person) or a Verda GPU machine, then the vectors are loaded into the shared database. |
 
 **Fixed before embedding** (changing them later means embedding again): the chunking rule and the
-exact text that is embedded. **Started early:** the full M load, which takes all night. Everything
-else can be rebuilt from the Parquet files.
+exact text that is embedded. Everything else can be rebuilt from the Parquet files.
 
 ## Data
 
