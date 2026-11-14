@@ -109,6 +109,7 @@ function render(res, q, animate) {
         <p class="src-heading">${s.era ? `<span class="pill${s.era === "then" ? " pill-warn" : ""}">${s.era === "then" ? `Then · ${esc(day(res.as_of))}` : "Now"}</span> ` : ""}${esc(s.heading || "Lead")}</p></div></header>
       <p class="src-text clamp" id="${key}-text" lang="fi">${esc(s.text)}</p>
       <button class="linkish more" type="button" aria-expanded="false" aria-controls="${key}-text" hidden>Show more</button>
+      <button class="linkish tr-btn" type="button" data-target="${key}-text">Translate</button>
       <p class="src-meta">${s.edits != null ? `<span class="num">${num(s.edits)} edits · ${num(s.reverts || 0)} reverts</span>` : ""}${!h ? "" :
         (h.live_since ? `<span class="pill" title="This passage has stood in the article since ${esc(h.live_since)}">live since ${esc(h.live_since.slice(0, 4))}</span>` : "") +
         (h.rewrites != null ? `<span class="pill num">${num(h.rewrites)} rewrite${h.rewrites === 1 ? "" : "s"}</span>` : "") +

@@ -358,3 +358,6 @@ body.page-graph footer { max-width: none; padding: .3rem 1rem; border: 0; font-s
 .xl-text { margin: .2rem 0 .3rem; font-size: .9rem; color: color-mix(in srgb, var(--text) 85%, var(--muted));
   display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .xl-add a { font-size: .8125rem; }
+
+/* Machine translation of a Finnish block (static/translate.js): always labelled as such */
+[data-fi]::after { content: " · machine translation (Opus-MT)"; color: var(--muted); font-size: .8em; font-style: italic; }
