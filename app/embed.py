@@ -13,7 +13,10 @@ MAX_TOKENS = 1024          # a 300-word Finnish passage is ~600 tokens
 @lru_cache(maxsize=1)
 def _model():
     from sentence_transformers import SentenceTransformer   # slow import: only when embedding
-    try:   # the Hub check on every load fails now and then ("Unrecognized processing class")
+    # Needs ~5 GB free memory while loading (2.3 GB fp32 weights, read via pytorch_model.bin).
+    # Short of memory, loading fails with misleading errors ("Unrecognized processing class",
+    # "memory allocation ... failed", a segfault): free memory, don't debug the model.
+    try:   # cache first: no network on load, works offline
         m = SentenceTransformer(MODEL, revision=REVISION, local_files_only=True)
     except (OSError, ValueError):   # not cached yet: download once
         m = SentenceTransformer(MODEL, revision=REVISION)
