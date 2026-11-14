@@ -385,6 +385,55 @@ No idea in the feature pool in `tasks/plan.md` changes the core tables or the as
 | More embedding | Ask the past, meaning drift, three languages | More rows in `passage_vector` (old versions, or sv/en paragraphs). Same table, same index, more GPU time. |
 | Outside the database | Source check; extension; MCP server | Fetched web pages in their own table; or a thin client on the JSON API. |
 
+## Time-aware retrieval: MariaDB does the time (Phase 3, being built)
+
+Added 2026-11-14 after a working pilot (results in `tasks/plan-a.md`, "Phase 3 pilot"). This is
+the brief's "both tracks" example: *"what did Wikipedia say about this in 2015, and what has
+changed since?"* It is also the strongest answer to the rubric's "effective and creative use of
+MariaDB": the hard parts are done by the database, not by application code.
+
+**The idea in one line: meaning lives in the vector, time lives in the table.** The date is
+stripped from the question before embedding; it becomes a `FOR SYSTEM_TIME AS OF` filter. Dates
+are never mixed into the embeddings: a passage's text doesn't say when it was live, validity is
+a range, and a year in the question would pull toward passages that *mention* that year.
+
+```sql
+-- "the Moscow peace, as Wikipedia had it on 1 June 2008": one statement, both tracks
+SELECT t.page_id, t.title, t.heading, t.text, v.d
+FROM (SELECT text_hash, VEC_DISTANCE_COSINE(embedding, ?) AS d
+      FROM history_vector ORDER BY d LIMIT 200) v                          -- meaning: vector index
+JOIN passage_history FOR SYSTEM_TIME AS OF TIMESTAMP '2008-06-01' h        -- time: system versioning
+  USING (text_hash)
+JOIN passage_text t USING (text_hash)
+ORDER BY v.d LIMIT 8;
+```
+
+**What each MariaDB feature contributes**
+
+| MariaDB feature | What it does for us | Without it |
+| --- | --- | --- |
+| **System-versioned tables + `system_versioning_insert_history`** | `article` (862,076 versions) and `passage_history` (passage lifetimes) carry Wikipedia's *real* edit times, so `AS OF '2008-06-01'` means "what Wikipedia showed that day". Verified: for 15 versions 2003–2026, `AS OF` returns exactly that version's passages. | Hand-written valid-from/valid-to columns and range logic in every query |
+| **Native vector index (HNSW, `M=16`, cosine)** | Nearest passages in 2–17 ms; recall@10 ≥ 99% | A separate vector database to keep in sync |
+| **Vector search + temporal join in one statement** | Search by meaning, filter by time, cite the version live on that date: one round trip | Two systems glued together in Python |
+| **Vectors keyed by text hash** | A passage unchanged across hundreds of versions is embedded once; old versions reuse today's vectors (pilot: 0 hash mismatches between old-version splitting and today's passages). Only texts live ≥ 1 day are embedded, so vandalism costs no GPU time. | Millions of near-identical vectors |
+| **Window functions over `FOR SYSTEM_TIME ALL`** | `revert_event`: 46,015 reverts found in one `INSERT ... SELECT`, 16 s over all versions | Python looping over every version |
+| **`VEC_DISTANCE_COSINE` inside an article** | "What has changed since": today's counterpart of an old passage found by meaning, so renamed sections still match (*Moskovan neuvottelut* 2008 → *Suomen ja Neuvostoliiton neuvottelut aluemuutoksista*) | Brittle heading matching |
+| **`FULLTEXT` + vectors fused by RRF in SQL** | Hybrid retrieval for names and years in Finnish (prefix terms) | A separate search engine |
+
+**Tables added** (`scripts/build_history.py`): `passage_text` (every distinct passage text ever,
+with first version and total time live), `passage_history` (system-versioned, one row per
+lifetime), `history_vector` (vectors of all texts live ≥ 1 day plus today's; kept apart from
+`passage_vector` until the search code is ready to use both).
+
+**Flow for a then-vs-now question:** route (topic + dates) → time-filtered vector search (above)
+→ the article version live on that date for the citation (`article FOR SYSTEM_TIME AS OF`) →
+today's counterpart by vector distance within the article → word diff → the LLM writes "then"
+and "what changed", citing both versions.
+
+**Sizes** (pilot extrapolation, replaced by real numbers after the full run): ~350–450k texts
+live ≥ 1 day, ~40 min embedding on Modal, ~2 GB of vectors. **Open:** query speed and how many
+candidates survive the time filter at that size; side-by-side display for rewritten paragraphs.
+
 ## Notes for the time features
 
 From the review on 2026-11-13. None of these changes the base; they are the points to settle
@@ -422,4 +471,5 @@ when `passage_history` and "ask the past" are built.
 - Whether the starter's wikitext cleaner is good enough for passages.
 - The prefix rule (cut 3 letters, minimum 4) and the question-word list: tune on the evaluation.
 - Whether a reranker earns its latency.
-- Which time feature is the highlight (the feature pool in `tasks/plan.md`).
+- Which time feature is the highlight: time-aware retrieval (section above) is being built; to
+  be confirmed by both people.
