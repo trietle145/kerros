@@ -51,8 +51,10 @@
   {%- elif i.label == "partly" -%}Finnish touches this, with less detail
   {%- else -%}no Finnish paragraph says this{%- endif -%}
 {%- endmacro %}
-{% for lang, L in xlang.items() %}
-<details class="xl"{% if loop.first %} open{% endif %}>
+{# folded, and only for today's article: the labels compare with today's Finnish text, and an
+   old date is about the version box and its diff link below #}
+{% for lang, L in xlang.items() if not request.args.get('as_of') %}
+<details class="xl">
   <summary class="xl-head">
     <h2>Compared with {{ "English" if lang == "en" else "Swedish" }} <a href="{{ L.url }}" lang="{{ lang }}">{{ L.title }}</a></h2>
     <span class="xl-counts">{% for k in ["covered", "partly", "elsewhere", "lost", "missing"] if L.counts[k] %}<span class="st st-{{ k }}">{{ L.counts[k] }} {{ SHORT[k] }}</span>{% endfor %}</span>
