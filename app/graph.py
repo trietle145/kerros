@@ -144,6 +144,47 @@ def api_graph(page_id):
     return g if g else ({"error": f"no article {page_id}"}, 404)
 
 
+WHY = {"mutual": "it and the main article link to each other", "out": "the main article links to it",
+       "in": "it links to the main article"}
+
+
+def reading_path(page_id):
+    """Reading order among the shown nodes, no model: the most linked-to (most general) articles
+    first, the opened article last."""
+    g = graph(page_id)
+    if not g:
+        return None
+    inn = link_index()["inn"]
+    rel = {n["id"]: n["relation"] for n in g["nodes"] if n["id"] != g["main"]}
+    steps = sorted(rel, key=lambda p: (-len(inn.get(p, ())), p))[:4]
+    path = [{"id": p, "why": (f"Start with the broadest topic here: {len(inn.get(p, ())):,} articles link "
+                              f"to it, and {WHY[rel[p]]}." if i == 0 else
+                              f"Next, a narrower topic ({len(inn.get(p, ())):,} articles link to it); "
+                              f"{WHY[rel[p]]}.")} for i, p in enumerate(steps)]
+    path.append({"id": g["main"], "why": "End with the article you opened, now that its background is in place."})
+    return {"path": path, "source": "heuristic"}
+
+
+@bp.get("/api/graph/<int:page_id>/path")
+def api_path(page_id):
+    p = reading_path(page_id)
+    return p if p else ({"error": f"no article {page_id}"}, 404)
+
+
+@bp.get("/api/related")
+def api_related():
+    """Articles behind a question: the hybrid search's passages grouped by article (best passage
+    as the snippet), up to 10, for the graph buttons under an answer."""
+    from flask import request
+    from app.search import search
+    q = (request.args.get("q") or "").strip()
+    if not q:
+        return {"error": "q is required"}, 400
+    hits = search(q, k=10, per_article=1)
+    return {"articles": [{"page_id": h["page_id"], "title": h["title"], "score": h["score"],
+                          "snippet": h["text"][:220] + ("…" if len(h["text"]) > 220 else "")} for h in hits]}
+
+
 if __name__ == "__main__":
     import time
     assert parse_links("[[Kustaa III:n sota]] [[Luokka:Sodat]] [[:Luokka:X]] [[Tiedosto:a.jpg|kuva]] "
