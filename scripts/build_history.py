@@ -3,6 +3,7 @@ with the same rule as today's passages (build_passages.passages), and each disti
 gets its lifetimes with Wikipedia's real edit times.
 
     python scripts/build_history.py 1256 1150 440    # these articles (pilot)
+    python scripts/build_history.py --all            # every article, 3 worker processes
     python scripts/build_history.py --verify 1256    # lifetimes vs the versions, AS OF spot checks
 
 Tables (dropped and rebuilt on each run):
@@ -14,7 +15,9 @@ format embed_passages.py / modal_embed.py read.
 """
 import argparse
 import sys
+import time
 from datetime import UTC, datetime
+from multiprocessing import Pool
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -72,7 +75,22 @@ def lifetimes(versions, page_id):
     return texts, spans
 
 
-def build(con, cur, page_ids):
+_cur = None
+
+
+def _init():
+    global _cur
+    _cur = connect().cursor()
+
+
+def _work(page_id):
+    """In a worker process: fetch one article's versions and compute its lifetimes."""
+    _cur.execute("SELECT rev_id, title, text, row_start, row_end FROM article FOR SYSTEM_TIME ALL "
+                 "WHERE page_id = ? ORDER BY row_start", (page_id,))
+    return (page_id, *lifetimes(_cur.fetchall(), page_id))
+
+
+def build(con, cur, page_ids, workers):
     for stmt in ("DROP TABLE IF EXISTS passage_text", "DROP TABLE IF EXISTS passage_history"):
         cur.execute(stmt)
     for stmt in TABLES.split(";"):
@@ -81,30 +99,42 @@ def build(con, cur, page_ids):
     cur.execute("SET system_versioning_insert_history = 1")
     cur.execute("SELECT text_hash FROM passage_vector")
     have = {h for (h,) in cur.fetchall()} | _hist_hashes(cur)
+    cur.execute("SELECT page_id, COUNT(*) FROM article FOR SYSTEM_TIME ALL GROUP BY page_id")
+    size = dict(cur.fetchall())
+    page_ids = sorted(page_ids, key=lambda p: -size.get(p, 0))     # biggest first: no long tail
+    total, done_versions, start = sum(size.get(p, 0) for p in page_ids), 0, time.time()
     to_embed = []
-    for page_id in page_ids:
-        cur.execute("SELECT rev_id, title, text, row_start, row_end FROM article FOR SYSTEM_TIME ALL "
-                    "WHERE page_id = ? ORDER BY row_start", (page_id,))
-        texts, spans = lifetimes(cur.fetchall(), page_id)
-        cur.executemany("INSERT INTO passage_text VALUES (?,?,?,?,?,?,?)",
-                        [(h, p["page_id"], p["rev_id"], p["title"], p["heading"], p["text"],
-                          int(p["alive_secs"])) for h, p in texts.items()])
-        closed = [(page_id, h, rev, start, end) for h, rev, start, end in spans if end]
-        live = [(page_id, h, rev, start) for h, rev, start, end in spans if not end]
-        if closed:
-            cur.executemany("INSERT INTO passage_history (page_id, text_hash, rev_id, row_start, "
-                            "row_end) VALUES (?,?,?,?,?)", closed)
-        cur.executemany("INSERT INTO passage_history (page_id, text_hash, rev_id, row_start) "
-                        "VALUES (?,?,?,?)", live)
-        con.commit()
-        to_embed += [p for h, p in texts.items() if p["alive_secs"] >= DAY and h not in have]
-        print(f"{page_id}: {len(texts)} texts, {len(spans)} lifetimes "
-              f"({sum(p['alive_secs'] >= DAY for p in texts.values())} alive >= 1 day)", flush=True)
+    with Pool(workers, _init) as pool:
+        for n, (page_id, texts, spans) in enumerate(pool.imap_unordered(_work, page_ids), 1):
+            _save(con, cur, page_id, texts, spans)
+            to_embed += [p for h, p in texts.items() if p["alive_secs"] >= DAY and h not in have]
+            done_versions += size.get(page_id, 0)
+            if n % 500 == 0 or n == len(page_ids) or len(page_ids) <= 10:
+                secs = time.time() - start
+                print(f"{n}/{len(page_ids)} articles, {done_versions:,}/{total:,} versions in "
+                      f"{secs / 60:.1f} min, ETA {(total - done_versions) / (done_versions / secs) / 60:.0f} "
+                      f"min; {len(to_embed):,} texts to embed so far", flush=True)
     out = ROOT / "data" / "history" / "passages.parquet"
     out.parent.mkdir(parents=True, exist_ok=True)
     pq.write_table(pa.Table.from_pylist([{k: p[k] for k in SCHEMA.names} for p in to_embed],
                                         SCHEMA), out)
     print(f"{len(to_embed)} texts to embed -> {out}")
+
+
+def _save(con, cur, page_id, texts, spans):
+    if texts:   # INSERT IGNORE: two articles can share a title (renames) and so a text hash
+        cur.executemany("INSERT IGNORE INTO passage_text VALUES (?,?,?,?,?,?,?)",
+                        [(h, p["page_id"], p["rev_id"], p["title"], p["heading"], p["text"],
+                          int(p["alive_secs"])) for h, p in texts.items()])
+    closed = [(page_id, h, rev, start, end) for h, rev, start, end in spans if end]
+    live = [(page_id, h, rev, start) for h, rev, start, end in spans if not end]
+    if closed:
+        cur.executemany("INSERT INTO passage_history (page_id, text_hash, rev_id, row_start, "
+                        "row_end) VALUES (?,?,?,?,?)", closed)
+    if live:
+        cur.executemany("INSERT INTO passage_history (page_id, text_hash, rev_id, row_start) "
+                        "VALUES (?,?,?,?)", live)
+    con.commit()
 
 
 def _hist_hashes(cur):
@@ -138,15 +168,21 @@ def verify(cur, page_id):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("page_ids", nargs="+", type=int)
+    ap.add_argument("page_ids", nargs="*", type=int)
+    ap.add_argument("--all", action="store_true", help="every article in `article`")
+    ap.add_argument("--workers", type=int, default=3, help="processes that chunk versions")
     ap.add_argument("--verify", action="store_true")
     args = ap.parse_args()
     con = connect()
     cur = con.cursor()
+    page_ids = args.page_ids
+    if args.all:
+        cur.execute("SELECT page_id FROM article")
+        page_ids = [p for (p,) in cur.fetchall()]
     if args.verify:
         cur.execute("SET time_zone = '+00:00'")
-        sys.exit(0 if all(verify(cur, p) for p in args.page_ids) else 1)
-    build(con, cur, args.page_ids)
+        sys.exit(0 if all(verify(cur, p) for p in page_ids) else 1)
+    build(con, cur, page_ids, args.workers)
 
 
 if __name__ == "__main__":
