@@ -58,7 +58,7 @@ def no_names(comment):
 # the server). With ASK_UPSTREAM=http://127.0.0.1:5000 (the tunnel to the server's app) the routes that
 # need them are answered by the server; everything else runs locally. Unset = no effect.
 UPSTREAM = os.environ.get("ASK_UPSTREAM", "").rstrip("/")
-FORWARD = ("/ask", "/api/related")
+FORWARD = ("/ask", "/api/related", "/api/cite")      # the routes that need the embedding model
 
 
 @bp.before_app_request
