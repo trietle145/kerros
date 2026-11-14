@@ -73,6 +73,10 @@ Phase 2     2.A1 Revert detection                      2.B1 again on passages   
                                                        2.J1 History button      (needs 2.A2)
 ```
 
+**Task details live with their owner:** A's tasks in `tasks/plan-a.md` on branch `a-data-time`,
+B's in `tasks/plan-b.md` on branch `b-search-app`. This file keeps what both share: the idea,
+decisions, ownership, contracts, shared tasks (1.0, 1.S, done tasks), checkpoints, risks.
+
 Neither person waits on the other at the start. B builds search and the eval on the S article
 vectors (already loaded) and the answer flow on the first pilot passages that A sends (3 hero
 articles, CPU-embedded, within the first hours). A sends real data as it is ready:
@@ -87,7 +91,7 @@ Only the owner edits a file. Everything else is read or imported. This is what k
 | **Shared** (written in 1.S, then frozen: change only after telling the other, in its own small commit) | `requirements.txt`, `app/main.py` (creates the app, registers the two blueprints, nothing else), `app/db.py` (connect + `SET mhnsw_ef_search = 80`), `app/embed.py` (`embed()` for passages *and* questions), `app/templates/base.html` |
 | **A** | `schema.sql`, `scripts/common.py`, `scripts/wikitext.py`, `scripts/build_passages.py`, `scripts/embed_passages.py`, `scripts/load_vectors.py`, `scripts/build_reverts.sql`, `app/history.py` (blueprint + `stats()`), `app/templates/article.html`, `app/static/history.*` |
 | **B** | `app/search.py` (vector, prefix terms, RRF), `app/rerank.py`, `app/llm.py` (prompts, provider), `app/ask.py` (blueprint), `app/templates/ask.html`, `app/static/ask.*`, `eval/` |
-| Docs | `tasks/plan.md`: tick only your own tasks. `CLAUDE.md` "Current state": A updates it. `.env.example`: add keys only under your own `# A` / `# B` heading. |
+| Docs | A: `tasks/plan-a.md`, B: `tasks/plan-b.md` (tick your own tasks there). `tasks/plan.md` and `CLAUDE.md` are shared: change them in a small PR of their own. `.env.example`: add keys only under your own `# A` / `# B` heading. |
 
 ### Contracts (fixed in 1.S; both code against them from the start)
 
@@ -108,9 +112,13 @@ Only the owner edits a file. Everything else is read or imported. This is what k
 
 ### Git
 
-Both push to `planning` (merge to `main` at the Phase checkpoints). `git pull --rebase` before
-every push; with one owner per file this never conflicts. Commit small and often. If you must
-touch a file you don't own, say so first and make it its own commit.
+- `planning` is the integration branch (1.S and the shared docs are there); `main` gets
+  `planning` at the Phase checkpoints.
+- A works on `a-data-time`, B on `b-search-app`. Merge into `planning` by pull request, small
+  and often (one task per PR is a good size); the other person skims and approves.
+- Before opening a PR, bring `planning` in: `git pull origin planning`. With one owner per file
+  this never conflicts.
+- A file you don't own: ask first, change it in its own PR.
 
 ---
 
@@ -120,6 +128,8 @@ Goal: each person has a local MariaDB with all four data tables filled.
 
 **Before starting:** claim the Verda, Modal and Claude credits, and ask the MariaDB mentors whether
 they host a database for teams (that would replace 1.A1).
+
+Remaining Phase 1 tasks are A's: 1.A2 (deferred), 1.A6–1.A8 in `tasks/plan-a.md`.
 
 ### Task 1.0 (both, 15 min): agree the hand-over formats
 
@@ -135,7 +145,7 @@ halves can be built in parallel.
 **Verification:** both people have read and agreed; `.env` is git-ignored.
 **Dependencies:** none. **Files:** `.env.example`. **Scope:** XS.
 
-### Task 1.S (one person, ~45 min, before the split): shared skeleton
+### Task 1.S (one person, ~45 min, before the split): shared skeleton (done, on `planning`)
 
 **Description:** Write the shared files from "Who owns which file" and the contract stubs, so
 both people can code against them at once. After this task the shared files are frozen.
@@ -145,9 +155,10 @@ both people can code against them at once. After this task the shared files are 
 returns zeros, `/ask` returns a fixed example in the contract's JSON shape).
 
 **Acceptance criteria:**
-- [ ] `flask --app app.main run` serves `/` and `/ask` (stub) and `/article/<id>` (stub).
-- [ ] `python -c "from app.embed import embed; print(len(embed(['testi'])[0]))"` prints 4096.
-- [ ] `requirements.txt` installs cleanly in a fresh `.venv`; README setup uses it.
+- [x] `flask --app app.main run` serves `/` and `/ask` (stub) and `/article/<id>` (stub).
+- [x] `python -m app.embed` self-check passes (4096 bytes per vector, normalised, similar > unrelated).
+- [ ] `requirements.txt` installs cleanly in a fresh `.venv`; README setup uses it. (README done;
+      installed into A's existing `.venv`, so the fresh install is checked on B's machine.)
 
 **Verification:** the three commands above, on both machines.
 **Dependencies:** 1.0. **Files:** `requirements.txt`, `app/main.py`, `app/db.py`, `app/embed.py`,
@@ -169,20 +180,6 @@ disk image moved to D: (C: has 2.9 GB free).
 
 **Verification:** `SELECT VEC_DISTANCE_COSINE(VEC_FromText('[1,0]'), VEC_FromText('[0,1]'));` returns 1.
 **Dependencies:** none. **Files:** `docker-compose.yml`, `.env.example` (both exist). **Scope:** S.
-
-### Task 1.A2: B can reach the database (deferred: each person runs a local MariaDB for now)
-
-**Description:** Install Tailscale on the machine and both laptops. Set `DB_BIND` in the machine's
-`.env` to its Tailscale IP and restart the container, so MariaDB listens only on the Tailscale
-network. Create a separate MariaDB login for each person.
-
-**Acceptance criteria:**
-- [ ] B runs `SELECT 1` from their laptop against the machine's Tailscale IP with their own login.
-- [ ] Connecting to the machine's public IP on port 3306 fails.
-
-**Verification:** B's `mariadb -h <tailscale-ip> -u <user> -p wiki -e "SELECT 1"` works; the same
-against the public IP times out.
-**Dependencies:** 1.A1. **Files:** setup note in README. **Scope:** XS.
 
 ### Task 1.A3: smoke test
 
@@ -230,41 +227,6 @@ second logged, so the full-load time can be estimated.
 **Verification:** both counts; an AS OF query on *Talvisota* takes well under a second.
 **Dependencies:** 1.A4. **Files:** none. **Scope:** XS (runs all night).
 
-### Task 1.A6 (A): passages from the Parquet files
-
-**Description:** `scripts/build_passages.py` reads `data/m/*.parquet` directly (no database), takes
-the newest version of each article, cleans the wikitext to plain text (reuse the starter's cleaner),
-cuts it into one passage per section (lead included; sections over ~300 words split at
-paragraphs; reference and link sections skipped) and writes `data/passages.parquet`
-in the 1.0 format. Takes `--limit N` and `--titles`. **Pilot first:** the 3 hero articles,
-embedded on the CPU with `app.embed.embed()`, sent to B as both files, so B builds on real
-passages from the start.
-
-**Acceptance criteria:**
-- [ ] Pilot files (3 hero articles, passages + vectors) sent to B.
-- [ ] On 3 hero articles (*Talvisota*, *Suomen sisällissota*, one more) the passages read cleanly:
-      no template, table or reference markup left; `heading` NULL only for the lead; no empty texts.
-- [ ] Full run finishes; passage count (~67k expected) and distinct `text_hash` count noted.
-
-**Verification:** print 10 random passages and read them; counts in the PR.
-**Dependencies:** 1.S. **Files:** `scripts/build_passages.py`, `scripts/wikitext.py`. **Scope:** M.
-
-### Task 1.A7 (A): embed the passages
-
-**Description:** `scripts/embed_passages.py` embeds each distinct passage with `app.embed.embed()`
-(input = title \n heading \n text, max 1,024 tokens, normalised) and writes `data/passage_vectors.parquet`. Runs on a GPU
-for a few minutes (~67k passages; 1–3 hours on a CPU also works): Modal (per-second billing, $100 per person) or a Verda GPU machine; Colab or
-Kaggle as a free fallback. Time it on 20 articles first.
-
-**Acceptance criteria:**
-- [ ] 20-article pilot: paragraphs per second measured, full-run time estimated.
-- [ ] Full run: one vector per distinct `text_hash`.
-- [ ] Five test questions embedded on the GPU machine and on the machine that will serve questions
-      give cosine similarity > 0.99 (same model and settings on both).
-
-**Verification:** row count = distinct hash count from 1.A6; the five-question check printed.
-**Dependencies:** 1.A6. **Files:** `scripts/embed_passages.py` (uses the shared `app/embed.py`). **Scope:** M.
-
 ### Task 1.B3: download S, write its loader (done)
 
 **Description:** Download S from the datasets repo into `data/s/` and check its checksums. Write
@@ -277,22 +239,6 @@ Kaggle as a free fallback. Time it on 20 articles first.
 
 **Verification:** checksum output; loader dry run prints row counts per language.
 **Dependencies:** none. **Files:** `scripts/load_s.py`. **Scope:** S.
-
-### Task 1.A8 (A): load paragraphs and vectors
-
-**Description:** `scripts/load_vectors.py` loads `passages.parquet` into `passage` and
-`passage_vectors.parquet` into `passage_vector` (each file on its own, whichever exists, so
-passages and their FULLTEXT index can go in before the GPU run ends). Set
-`mhnsw_ef_search = 80` and measure recall with the starter's `index_recall.py`. Both people run it
-on their own database.
-
-**Acceptance criteria:**
-- [ ] `passage` and `passage_vector` row counts match the files.
-- [ ] Every `passage.text_hash` has a vector.
-- [ ] Recall@10 ≥ 95% (if lower, raise `M` or `ef_search` and note the setting).
-
-**Verification:** counts, the join check, and the recall output in the PR.
-**Dependencies:** 1.A6 (passages), 1.A7 (vectors). **Files:** `scripts/load_vectors.py`. **Scope:** S.
 
 ### Task 1.B5: load S vectors (done: 0.7 min, ~700 vectors/s with the index built as rows go in)
 
@@ -319,124 +265,9 @@ on their own database.
 Goal: a web page where a question gets a cited answer, and each source opens its article's history.
 This is the base the time highlight is built on.
 
-### Task 2.B1 (B): vector search and evaluation
-
-**Description:** `app/search.py` `search()` returns the top 8 paragraphs for a question (vector
-search in a subquery, joined to `passage` afterwards, at most 2 per article). `eval/evaluate.py`
-runs the starter's 37 test questions. **Starts before passages exist:** the eval runs first
-against `article_vector` (already loaded; article-level, same as the starter), and `search()`
-runs on A's pilot passages. Switch both to all passages when 1.A8 lands; only the table changes.
-
-**Acceptance criteria:**
-- [ ] Eval on `article_vector` reproduces the starter's ~76% top-5 (proves our question embedding
-      matches the shipped vectors).
-- [ ] On passages: right article in the top 5 for more than 76% of the 37 questions.
-- [ ] One search takes under 100 ms on the database side.
-
-**Verification:** `python eval/evaluate.py` prints top-5 / top-10 hit rates.
-**Dependencies:** 1.S (start); 1.A8 (passage numbers). **Files:** `app/search.py`, `eval/evaluate.py`. **Scope:** S.
-
-### Task 2.B2 (B): cited answers
-
-**Description:** `app/llm.py` sends the question and numbered paragraphs to the cloud model, which
-answers in the question's language with `[n]` after every sentence. The code checks every `[n]`
-exists and flags sentences without one.
-
-**Acceptance criteria:**
-- [ ] 5 questions in Finnish and 5 in English get answers in their own language.
-- [ ] Every citation points to a paragraph that was sent; uncited sentences are flagged.
-- [ ] The provider and model come from `.env`.
-
-**Verification:** a script that runs the 10 questions and prints answers with sources; read by hand.
-**Dependencies:** 1.S, pilot passages from 1.A6 (not the full search). **Files:** `app/llm.py`. **Scope:** S.
-
-### Task 2.B3 (B): ask page
-
-**Description:** Flask `/ask` (JSON, shape in "Contracts") and a page: question box, answer,
-numbered sources with title, section, `stats()` numbers and a link to
-`https://fi.wikipedia.org/?oldid=<rev_id>`. `/ask` accepts an `as_of` date and ignores it for now.
-
-**Acceptance criteria:**
-- [ ] A question typed on the page shows a cited answer and working source links.
-- [ ] `/ask` returns the same as JSON.
-
-**Verification:** manual check in the browser on 3 questions.
-**Dependencies:** 2.B2. **Files:** `app/ask.py`, `app/templates/ask.html`, `app/static/ask.*`. **Scope:** M.
-
-### Task 2.B4 (B): hybrid search
-
-**Description:** Add the `FULLTEXT` half (boolean mode, prefix terms built from the question in
-Python: Kekkonen → `Kekko*`) and fuse both rankings by RRF (k = 60, top 50 per side) in one SQL
-statement with `UNION ALL` + `GROUP BY` (no FULL OUTER JOIN in MariaDB). See `docs/architecture.md`.
-
-**Acceptance criteria:**
-- [ ] Evaluation score is not lower than vector-only; both numbers recorded.
-- [ ] A question with an exact name or year (e.g. "president 1956–1982") finds the right paragraph.
-
-**Verification:** `eval/evaluate.py` run for both modes.
-**Dependencies:** 2.B1; passages loaded (1.A8, passages half). **Files:** `app/search.py`. **Scope:** S.
-
-### Task 2.B5 (B, optional): reranker, measured
-
-**Description:** `app/rerank.py` reorders the fused top 50 with a cross-encoder (e.g.
-bge-reranker-v2-m3) before keeping 8. Kept only if it pays for its CPU time.
-
-**Acceptance criteria:**
-- [ ] Eval with and without the reranker recorded, plus the added latency per question.
-- [ ] Switched by one `.env` key (`RERANK_MODEL`, empty = off); kept on only if top-5 improves.
-
-**Verification:** `eval/evaluate.py` for both settings.
-**Dependencies:** 2.B4. **Files:** `app/rerank.py`, `app/search.py`. **Scope:** S.
-
-### Task 2.A1 (A): revert detection
-
-**Description:** `scripts/build_reverts.sql` fills `revert_event` from `article` (sketch in
-`docs/architecture.md`). Filter out versions with no `sha1` and blanked pages, which would show up as
-false reverts.
-
-**Acceptance criteria:**
-- [ ] *Talvisota* shows a revert count in the same range as the starter README's 328.
-- [ ] 10 random reverts checked against their Wikipedia diffs look right.
-
-**Verification:** counts per article; the 10 spot checks noted.
-**Dependencies:** 1.A5. **Files:** `scripts/build_reverts.sql`. **Scope:** S.
-
-### Task 2.A2 (A): time-view endpoints and stats()
-
-**Description:** `/article/<page_id>?as_of=<date>` returns the article as it stood then (cleaned for
-reading); `/article/<page_id>/timeline` returns edits and reverts per month; `stats()` replaces
-its stub with real edit and revert counts.
-
-**Acceptance criteria:**
-- [ ] AS OF returns the right `rev_id` for 3 dates on *Talvisota*.
-- [ ] The timeline matches the edit counts in `article FOR SYSTEM_TIME ALL`.
-- [ ] Both answer in under 1 second.
-
-**Verification:** compare against direct SQL; timings logged.
-**Dependencies:** 1.S, 2.A1. **Files:** `app/history.py`. **Scope:** S.
-
-### Task 2.A3 (A): time-view pages
-
-**Description:** An article page with a date picker (the as-of reader) and a timeline chart of edits
-with reverts marked; picking a month opens the article as of that month.
-
-**Acceptance criteria:**
-- [ ] Moving the date changes the text shown and the linked `?oldid=`.
-- [ ] Editors appear as patterns and links to diffs, never labelled as vandals.
-
-**Verification:** manual check on the 3 hero articles.
-**Dependencies:** 2.A2. **Files:** `app/templates/article.html`, `app/static/history.*`. **Scope:** M.
-
-### Task 2.J1 (B, with A's stats()): History button
-
-**Description:** Each source card under an answer shows "N edits, M reverts" (from `stats()`) and
-a History button linking to `/article/<page_id>`. Only B's files change; A's side is the contract.
-
-**Acceptance criteria:**
-- [ ] From a question, one click reaches the source's timeline, and one more reaches its text on a chosen date.
-
-**Verification:** walk the full demo path by hand: question → answer → source → history → as-of text.
-**Dependencies:** 2.B3, 2.A2 (real numbers), 2.A3 (page to land on). **Files:** `app/templates/ask.html`. **Scope:** S.
+Tasks: 2.A1–2.A3 in `tasks/plan-a.md` (branch `a-data-time`); 2.B1–2.B5 and 2.J1 in
+`tasks/plan-b.md` (branch `b-search-app`). The demo path: question → answer → source → History
+button → timeline → article as of a date.
 
 ### Checkpoint: Phase 2 done (the base)
 

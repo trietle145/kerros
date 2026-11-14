@@ -1,0 +1,5 @@
+mariadb
+pyarrow
+flask
+sentence-transformers
+anthropic

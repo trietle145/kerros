@@ -65,8 +65,9 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
   (`DB_BIND` = Tailscale IP), each with their own login. Deploy = `git pull && docker compose up
   -d --build`. Embedding all paragraphs runs once on a GPU (Modal or Verda); questions are
   embedded on the server's CPU.
-- Working habits on the PC: planning work goes on the `planning` branch, create `.venv` first,
-  data under `data/` (never committed).
+- Branches: `planning` = integration (shared files and docs); A works on `a-data-time`, B on
+  `b-search-app`, merged into `planning` by PR; `main` gets `planning` at Phase checkpoints.
+  Create `.venv` first (`pip install -r requirements.txt`); data under `data/` (never committed).
 
 ## Phases (tasks with acceptance criteria in `tasks/plan.md`)
 Split between two people (revised 2026-11-14): **A = data and time** (passages, embedding,
@@ -140,7 +141,8 @@ people split the work".
   index on a versioned or partitioned table.
 
 ## Project docs
-- `tasks/plan.md`: the one planning file (idea, decisions, phases and tasks, feature pool, risks).
+- `tasks/plan.md`: the shared plan (idea, decisions, ownership, contracts, feature pool, risks).
+  Per-person tasks: `tasks/plan-a.md` (branch `a-data-time`), `tasks/plan-b.md` (`b-search-app`).
 - `docs/architecture.md`: the base (cited Q&A and time views) and what the time features add.
 - `docs/research/wikipedia-problems.md`: problems worth solving, ranked, with sources.
 - `docs/research/edit-wars.md`: edit wars and vandalism, detection methods, 8 feature ideas.
@@ -148,7 +150,8 @@ people split the work".
 ## Current state of this folder (2026-11-14)
 - `.venv` exists (Python 3.13, `mariadb` + `pyarrow`). Datasets M (`data/m/`, 16 Parquet files)
   and S (`data/s/`) are downloaded, checksums verified. `data/` and `.venv/` are git-ignored.
-  Code so far: `scripts/common.py`, `load_m.py`, `load_s.py`.
+  Code so far: `scripts/common.py`, `load_m.py`, `load_s.py`; app skeleton (1.S): `app/main.py`,
+  `db.py`, `embed.py`, stub `ask.py` and `history.py`, `templates/base.html`.
 - MariaDB 12.3.3 runs on this PC in Docker (`docker compose up -d`), data volume on D:, host port
   **3307** (a MySQL 9.4 Windows service holds 3306; leave it alone). Schema applied, ef_search=80
   confirmed, login `triet`. **All of M is loaded** (19,742 articles, 862,076 versions, 6.1 GB,
@@ -156,7 +159,7 @@ people split the work".
   (29,460 rows, 0.7 min; `load_s.py --verify` ok, search ~1 ms warm). The Verda machine with
   `docker-compose.yml` stays the plan for an always-on shared host.
 - `.env.example` lists every setting; copy to `.env` (git-ignored) and fill in.
-- Next: shared skeleton (1.S), then in parallel A: passages (1.A6), B: search + eval (2.B1).
+- Next, in parallel: A passages (1.A6) on `a-data-time`, B search + eval (2.B1) on `b-search-app`.
 
 ## Coding style
 - Use the `ponytail` skill (level full) for every coding task: the smallest code that works,

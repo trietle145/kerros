@@ -18,7 +18,7 @@ cp .env.example .env          # fill in passwords; DB_USER/DB_PASSWORD = MARIADB
                               # DB_PORT=3307 if something already uses 3306
 docker compose up -d          # MariaDB 12 + schema.sql applied on first start
 python -m venv .venv && . .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install mariadb pyarrow   # macOS: brew install mariadb-connector-c first
+pip install -r requirements.txt   # macOS: brew install mariadb-connector-c first
 
 # Datasets into data/ (git-ignored), checksums verified
 for set in m s; do
@@ -30,6 +30,9 @@ done
 
 python scripts/load_m.py > data/load_m.log   # ~12 min, all history; then --verify 20
 python scripts/load_s.py > data/load_s.log   # <1 min, article vectors; then --verify
+
+python -m app.embed                  # downloads bge-m3 once (~2.3 GB into HF_HOME), self-check
+flask --app app.main run --debug     # http://127.0.0.1:5000
 ```
 
 Files we make (passages, vectors) are shared as Parquet files, not through git; each person loads
