@@ -6,10 +6,11 @@ these JSON routes and never touches the database. Contract: docs/frontend.md, "A
 """
 import re
 import threading
+import time
 from datetime import date
 from urllib.parse import quote
 
-from flask import Blueprint, request
+from flask import Blueprint, has_request_context, request
 
 from app import xlang
 from app.embed import embed
@@ -21,19 +22,37 @@ from scripts.common import env
 
 bp = Blueprint("answer", __name__)
 DAILY_LIMIT = int(env().get("ASK_DAILY_LIMIT") or 300)   # model answers per day (~$0.03 each)
-_used, _lock = {"day": None, "n": 0}, threading.Lock()
+HOURLY_PER_VISITOR = int(env().get("ASK_HOURLY_PER_VISITOR") or 20)   # so one visitor can't use up the day
+_used, _recent, _lock = {"day": None, "n": 0}, {}, threading.Lock()
 
 
-def take_answer():
-    """False once today's DAILY_LIMIT answers are used. ponytail: in memory, so per worker and reset
-    on restart; gunicorn runs one worker. A shared counter in MariaDB if that changes."""
+def _visitor():
+    """The visitor's IP. The app listens on 127.0.0.1 only; Caddy adds the client address last in
+    X-Forwarded-For (a client-sent value sits before it, so it can't pick its own key)."""
+    if not has_request_context():
+        return "local"
+    return request.headers.get("X-Forwarded-For", "").split(",")[-1].strip() or request.remote_addr
+
+
+def limit_reached():
+    """None (and one model call counted), or why not: the 429 message. At most HOURLY_PER_VISITOR
+    calls per visitor in any hour and DAILY_LIMIT a day overall. ponytail: in memory, so per worker
+    and reset on restart (gunicorn runs one worker); _recent keeps a key per visitor, at most
+    DAILY_LIMIT a day. A shared counter in MariaDB if that changes."""
+    now, who = time.monotonic(), _visitor()
     with _lock:
         if _used["day"] != date.today():
             _used.update(day=date.today(), n=0)
+            _recent.clear()
         if _used["n"] >= DAILY_LIMIT:
-            return False
+            return f"The demo's daily limit of {DAILY_LIMIT} answers is used up. Please try again tomorrow."
+        recent = [t for t in _recent.get(who, ()) if now - t < 3600]
+        if len(recent) >= HOURLY_PER_VISITOR:
+            return (f"You've asked {HOURLY_PER_VISITOR} questions in the last hour. Please try again in "
+                    f"{int(3600 - (now - recent[0])) // 60 + 1} minutes.")
+        _recent[who] = recent + [now]
         _used["n"] += 1
-        return True
+        return None
 
 SYSTEM = """You answer questions using only the numbered Wikipedia passages you are given.
 - Answer in the language of the question (Finnish, Swedish or English), even though the passages are Finnish.
@@ -113,8 +132,8 @@ def ask():
     question = (request.values.get("q") or "").strip()
     if not question:
         return {"error": "q is required"}, 400
-    if not take_answer():
-        return {"error": f"The demo's daily limit of {DAILY_LIMIT} answers is used up. Please try again tomorrow."}, 429
+    if why := limit_reached():
+        return {"error": why}, 429
     try:
         return answer(question, request.values.get("as_of"))
     except RefusedError as e:
@@ -123,14 +142,21 @@ def ask():
         return {"error": f"answering failed: {type(e).__name__}: {e}"}, 500
 
 
+def assert_limits():
+    """The two caps, without the model or the database."""
+    _used.update(day=date.today(), n=DAILY_LIMIT - 1); _recent.clear()
+    assert limit_reached() is None and "daily limit" in limit_reached(), "the daily cap stops at DAILY_LIMIT"
+    _used.update(n=0); _recent.clear()
+    assert all(limit_reached() is None for _ in range(HOURLY_PER_VISITOR))
+    assert "last hour" in limit_reached(), "a visitor stops at HOURLY_PER_VISITOR"
+    _used.update(n=0); _recent.clear()
+
+
 if __name__ == "__main__":
-    import time
     assert parse("Talvisota alkoi 1939 [1].\nSe päättyi 1940 [2][9].\nEn tiedä.", 8) == [
         {"text": "Talvisota alkoi 1939.", "cites": [1]}, {"text": "Se päättyi 1940.", "cites": [2]},
         {"text": "En tiedä.", "cites": []}]
-    _used.update(day=date.today(), n=DAILY_LIMIT - 1)
-    assert take_answer() and not take_answer(), "the daily cap should stop at DAILY_LIMIT"
-    _used.update(n=0)
+    assert_limits()
     a, s, d = [{"cites": [3]}, {"cites": [1, 3]}], [{"n": n} for n in (1, 2, 3, 4)], [{"then": 3, "now": 4}]
     renumber(a, s, d)
     assert a == [{"cites": [1]}, {"cites": [2, 1]}] and [x["n"] for x in s] == [1, 2, 3, 4]

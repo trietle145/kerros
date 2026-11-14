@@ -429,10 +429,10 @@ def explain(page_id, rev_id):
     top = sorted(spans, key=lambda s: -s["size"])[:4]
     summary, source = None, "heuristic"
     try:
-        from app.answer import take_answer
+        from app.answer import limit_reached
         from app.llm import complete
         from scripts.common import env
-        if env().get("LLM_API_KEY") and take_answer():          # counts against the daily answer cap
+        if env().get("LLM_API_KEY") and not limit_reached():   # counts against the answer caps
             summary = complete("You explain one Wikipedia edit to a reader in plain English, in 1 or 2 short sentences, "
                                "using only the facts and changed text given. Never mention or guess who made it.",
                                f"Facts: {facts_}\n\nChanged text (Finnish), before -> after:\n" +
@@ -460,13 +460,13 @@ def ask_l():
     from app.embed import embed
     from app.llm import RefusedError, complete
     from app.search import rank
-    from app.answer import DAILY_LIMIT, take_answer
+    from app.answer import limit_reached
     from app.translate import guess_lang
     question = (request.values.get("q") or "").strip()
     if not question:
         return {"error": "q is required"}, 400
-    if not take_answer():
-        return {"error": f"The demo's daily limit of {DAILY_LIMIT} answers is used up. Please try again tomorrow."}, 429
+    if why := limit_reached():
+        return {"error": why}, 429
     try:
         sources = rank(embed([question])[0], question, 8, 2, tables=("l_passage", "l_vector"))
         if not sources:
