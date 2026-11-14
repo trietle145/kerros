@@ -28,7 +28,7 @@ from wikitext import clean
 MAX_WORDS = 300
 SKIP = {"lähteet", "viitteet", "aiheesta muualla", "katso myös", "kirjallisuutta",
         "kirjallisuus", "lähdeluettelo", "huomautukset"}
-REDIRECT = re.compile(r"\s*#(UUDELLEENOHJAUS|REDIRECT)", re.I)
+REDIRECT = re.compile(r"\s*#(UUDELLEENOHJAUS|OHJAUS|REDIRECT)", re.I)   # fi wiki uses all three
 SCHEMA = pa.schema([("page_id", pa.uint32()), ("rev_id", pa.uint32()), ("title", pa.string()),
                     ("position", pa.uint16()), ("heading", pa.string()), ("text", pa.string()),
                     ("text_hash", pa.binary(32))])
