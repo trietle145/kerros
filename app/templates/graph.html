@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{# The graph page shell (ui). The graph agents fill the #graph-* containers (Contract 3);
+   this file only places them. force-graph is pinned; the version was checked on the CDN. #}
+{% block title %}Graph · Wikipedia trust tool{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='graph/graph.css') }}">
+<script src="https://cdn.jsdelivr.net/npm/force-graph@1.51.0/dist/force-graph.min.js" defer></script>
+<script type="module" src="{{ url_for('static', filename='graph/main.js') }}"></script>
+{% endblock %}
+{% block body_class %}page-graph{% endblock %}
+{% block body_attrs %} data-page-id="{{ page_id }}" data-q="{{ q }}"{% endblock %}
+{% block topbar %}
+<a class="back" href="{{ url_for('ask.index', q=q or None, mock=request.args.get('mock')) }}">
+  <b aria-hidden="true">←</b><span>{{ q or "Ask a question" }}</span><i class="sr">: back to the answer</i>
+</a>
+{% endblock %}
+{% block content %}
+<div class="g-ui">
+  <div id="graph-canvas" aria-hidden="true"></div>
+  <div class="g-head">
+    <p class="kicker">Article graph</p>
+    <h1 id="graph-title" lang="fi">&nbsp;</h1>
+    <p>Explore how the sources connect, and how those connections grew.</p>
+  </div>
+  <script>  // the title the reader just clicked, before the first paint, so it can morph across pages
+    try { document.getElementById("graph-title").textContent =
+            JSON.parse(sessionStorage.getItem("titles") || "{}")[document.body.dataset.pageId] || " "; } catch (e) {}
+  </script>
+  <div id="graph-status" class="g-float" role="status" aria-live="polite"></div>
+  <details class="g-float g-list">
+    <summary>Articles in this graph</summary>
+    <div id="graph-nodelist"></div>
+  </details>
+  <aside id="graph-panel" class="g-float" aria-label="Selected article"></aside>
+  <div id="graph-legend" class="g-float"></div>
+  <div id="graph-timeline" class="g-float"></div>
+</div>
+<script type="module">
+  // The real title (and every neighbour's, for "Make this the main node") once the data is here.
+  import { graph } from "/static/api.js";
+  const h1 = document.getElementById("graph-title");
+  graph(document.body.dataset.pageId).then(d => {
+    const main = d.nodes.find(n => n.id === d.main);
+    if (main) { h1.textContent = main.title; document.title = main.title + " · graph"; }
+    try {
+      const t = JSON.parse(sessionStorage.getItem("titles") || "{}");
+      for (const n of d.nodes) t[n.id] = n.title;
+      sessionStorage.setItem("titles", JSON.stringify(t));
+    } catch {}
+  }).catch(() => { h1.textContent = "Article " + document.body.dataset.pageId; });
+</script>
+{% endblock %}

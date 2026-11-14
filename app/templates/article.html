@@ -7,7 +7,7 @@
 {% else %}
 <header class="hist-head">
   <p class="kicker">Article history</p>
-  <h1>{{ title }}</h1>
+  <h1 lang="fi">{{ title }}</h1>
   <p class="totals">
     {{ "{:,}".format(edits) }} edits since {{ first_month }} ·
     {{ "{:,}".format(reverts) }} reverts
@@ -55,7 +55,7 @@
   {% if version.comment %}· summary: “{{ version.comment[:140] }}”{% endif %}
   · <a href="https://fi.wikipedia.org/w/index.php?diff={{ version.rev_id }}&oldid=prev">what this edit changed</a>
 </aside>
-<article class="wiki">
+<article class="wiki" lang="fi">
   {% for kind, text in sections %}
     {% if kind == "ul" %}<ul>{% for item in text %}<li>{{ item }}</li>{% endfor %}</ul>
     {% elif kind == "h2" %}<h2>{{ text }}</h2>
