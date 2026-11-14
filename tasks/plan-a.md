@@ -57,7 +57,13 @@ passages from the start.
 **Verification:** print 10 random passages and read them; counts in the PR.
 **Dependencies:** 1.S. **Files:** `scripts/build_passages.py`, `scripts/wikitext.py`. **Scope:** M.
 
-### Task 1.A7 (A): embed the passages
+### Task 1.A7 (A): embed the passages (done 2026-11-14)
+
+**Result:** all 66,642 passages embedded on Modal (up to 4 × A10G) in **6.4 min, 174
+passages/s**; `data/passage_vectors.parquet`, 276 MB. Run: `modal run scripts/modal_embed.py`
+(only `embed()` runs remotely; image has bge-m3 baked in, revision pinned). GPU = CPU checked
+two ways: pilot 163 passages embedded both ways, cosine 1.00000; 5 random stored GPU vectors
+re-embedded locally, cosine 1.0.
 
 **Description:** `scripts/embed_passages.py` embeds each distinct passage with `app.embed.embed()`
 (input = title \n heading \n text, max 1,024 tokens, normalised) and writes `data/passage_vectors.parquet`. Runs on a GPU
@@ -67,28 +73,36 @@ against its input before embedding. **CPU measured: 0.7 passages/s** on A's lapt
 median 174 words), so the full 66,642 would take roughly 12–25 hours: GPU needed.
 
 **Acceptance criteria:**
-- [ ] 20-article pilot: paragraphs per second measured, full-run time estimated.
-- [ ] Full run: one vector per distinct `text_hash`.
-- [ ] Five test questions embedded on the GPU machine and on the machine that will serve questions
-      give cosine similarity > 0.99 (same model and settings on both).
+- [x] 20-article pilot: paragraphs per second measured, full-run time estimated. (3 hero
+      articles: CPU 0.7/s; GPU run then measured directly.)
+- [x] Full run: one vector per distinct `text_hash`.
+- [x] GPU vectors and vectors from the machine that serves questions match, cosine > 0.99
+      (passages instead of five questions: same function, stronger check).
 
-**Verification:** row count = distinct hash count from 1.A6; the five-question check printed.
+**Verification:** row count = distinct hash count from 1.A6; GPU vs CPU cosine printed.
+**Note:** any process that embeds needs ~5 GB free memory while bge-m3 loads; short of it,
+loading fails with misleading errors (see `app/embed.py`).
 **Dependencies:** 1.A6. **Files:** `scripts/embed_passages.py` (uses the shared `app/embed.py`). **Scope:** M.
 
-### Task 1.A8 (A): load paragraphs and vectors
+### Task 1.A8 (A): load paragraphs and vectors (done 2026-11-14)
+
+**Result:** passages 0.3 min, vectors 2.7 min (~400/s with the index built as rows go in).
+recall@10 **99.4–99.8%** at ef_search 80 (M=16 holds at 66k vectors); search median 11–17 ms
+warm, ~0.3–0.5 s for the first queries after a restart (index cache cold). Real questions find
+the right article in fi and sv ("Mitä tapahtui Mainilassa 1939?" → Mainilan laukaukset).
 
 **Description:** `scripts/load_vectors.py` loads `passages.parquet` into `passage` and
 `passage_vectors.parquet` into `passage_vector` (each file on its own, whichever exists, so
-passages and their FULLTEXT index can go in before the GPU run ends). Set
-`mhnsw_ef_search = 80` and measure recall with the starter's `index_recall.py`. Both people run it
-on their own database.
+passages and their FULLTEXT index can go in before the GPU run ends). Recall is measured inside
+the script like the starter's `index_recall.py` (exact top 10 with `IGNORE INDEX` vs the
+index's top 10, 50 random stored vectors as queries). Both people run it on their own database.
 
 **Acceptance criteria:**
-- [ ] `passage` and `passage_vector` row counts match the files.
-- [ ] Every `passage.text_hash` has a vector.
-- [ ] Recall@10 ≥ 95% (if lower, raise `M` or `ef_search` and note the setting).
+- [x] `passage` and `passage_vector` row counts match the files.
+- [x] Every `passage.text_hash` has a vector.
+- [x] Recall@10 ≥ 95% (if lower, raise `M` or `ef_search` and note the setting).
 
-**Verification:** counts, the join check, and the recall output in the PR.
+**Verification:** `python scripts/load_vectors.py --verify` (counts, the join check, recall).
 **Dependencies:** 1.A6 (passages), 1.A7 (vectors). **Files:** `scripts/load_vectors.py`. **Scope:** S.
 
 ### Task 2.A1 (A): revert detection

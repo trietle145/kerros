@@ -2,6 +2,7 @@
 
     python scripts/embed_passages.py data/pilot/passages.parquet   # -> data/pilot/passage_vectors.parquet
     python scripts/embed_passages.py                               # data/passages.parquet, all of them
+    modal run scripts/modal_embed.py                               # the same, embedded on a Modal GPU
 
 Writes passage_vectors.parquet next to the input: text_hash, model, embedding (1024 float32,
 normalised). Checks every hash against its embedding input first, so a changed input rule fails
@@ -25,8 +26,9 @@ from app.embed import MODEL, embed   # noqa: E402
 CHUNK = 256
 
 
-def main():
-    src = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / "data" / "passages.parquet")
+def main(src=None, embed_chunks=None):
+    """embed_chunks: list of text chunks -> iterable of vector lists, in order (default: local CPU/GPU)."""
+    src = Path(src or (sys.argv[1] if len(sys.argv) > 1 else ROOT / "data" / "passages.parquet"))
     dst = src.with_name("passage_vectors.parquet")
     todo = {}
     for r in pq.read_table(src).to_pylist():
@@ -37,8 +39,9 @@ def main():
     hashes, inputs, out = list(todo), list(todo.values()), []
     print(f"{len(inputs)} distinct texts to embed with {MODEL}", flush=True)
     start = time.time()
-    for i in range(0, len(inputs), CHUNK):
-        out += embed(inputs[i:i + CHUNK])
+    chunks = [inputs[i:i + CHUNK] for i in range(0, len(inputs), CHUNK)]
+    for vecs in (embed_chunks or (lambda cs: map(embed, cs)))(chunks):
+        out += vecs
         done, secs = len(out), time.time() - start
         print(f"{done}/{len(inputs)} in {secs / 60:.1f} min ({done / secs:.1f}/s), "
               f"ETA {(len(inputs) - done) / (done / secs) / 60:.1f} min", flush=True)
