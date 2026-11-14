@@ -3,7 +3,8 @@
 # tmux session is killed) as "reload", so stop it with SIGTERM first, then start one copy.
 cd "$(dirname "$0")/.."
 # [g]: the pattern can't match this shell's own command line
-pkill -TERM -f "[g]unicorn -c gunicorn.conf.py" && sleep 3
+pkill -TERM -f "[g]unicorn -c gunicorn.conf.py"
+for i in $(seq 1 30); do pgrep -f "[g]unicorn -c gunicorn.conf.py" > /dev/null || break; sleep 1; done   # gone before the tmux kill, or its SIGHUP reloads it
 tmux kill-session -t web 2>/dev/null
 tmux new -d -s web ".venv/bin/gunicorn -c gunicorn.conf.py app.main:app > /root/web.log 2>&1"
 for i in $(seq 1 60); do grep -q "link index built" /root/web.log && break; sleep 2; done
