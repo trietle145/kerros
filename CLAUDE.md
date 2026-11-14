@@ -4,10 +4,14 @@
 > The plan and task list: `tasks/plan.md`.
 
 ## Goal
-Build a Wikipedia tool that is missing or underused, with MariaDB at the core. Judged on:
-creative use of MariaDB RAG (vector search) and/or SVT (system-versioned tables), technical
-execution and scaling across datasets, usefulness to readers or editors, design and demo quality.
-Doing RAG and SVT together earns extra credit.
+Build a Wikipedia tool that is missing or underused, with MariaDB at the core. The topic is free
+(Finnish history is just what the datasets contain). **Rubric, 20% each:** effective and creative
+use of MariaDB (RAG and/or SVT); implementation and **scalability across the provided datasets**
+(S, M and L); usefulness for readers or editors; design and demo quality; **originality**. Bonus
+(0%, tie-breaker): technical ambition on SVT or combining both tracks. The brief's "very advanced"
+example: a RAG assistant that answers *"what did Wikipedia say about this in 2015, and what has
+changed since?"* A plain cited-Q&A chatbot is the most common hackathon idea; originality has to
+come from the time side.
 
 ## Resources (from the challenge page)
 - Team repo: https://github.com/trietle145/LakeBandits_junction. Planning docs are on the
@@ -32,9 +36,19 @@ The paragraph is the unit that joins RAG (a vector) and SVT (a versioned row).
   with reverts. Build this first. In the base the two tracks sit side by side and meet only at
   the History button on a cited source.
 - The highlight is one feature **through time**, added on top of the base without changing it.
-  Which one is **OPEN**. Front-runner: an answer time slider (the same question answered as of
-  a chosen year, and what changed since). Safety net: the edit-war radar, which needs only
-  `revert_event`. Sorted list: `tasks/plan.md`, Phase 3.
+  **Direction (2026-11-14, pilot works, both people to confirm): time-aware retrieval** ("then vs
+  now" answers). Meaning lives in the vector, time lives in the table: the date is stripped from
+  the question and becomes `FOR SYSTEM_TIME AS OF` on a system-versioned `passage_history`;
+  dates are never mixed into embeddings. Today's counterpart of an old passage is found by vector
+  distance within the article (headings get renamed), then word-diffed. The same table later
+  gives source-health badges (stable / rewritten / contested / lost its citation). Design and the
+  MariaDB selling points: docs/architecture.md, "Time-aware retrieval". Fallback highlight: the
+  edit-war radar (needs only `revert_event`).
+- **Selling point for the MariaDB criterion:** the database does the hard parts. One SQL
+  statement does vector search + temporal filter + citation of the version live on that date;
+  real Wikipedia edit times via `system_versioning_insert_history`; vectors keyed by text hash so
+  unchanged passages across hundreds of versions are embedded once; reverts by window functions
+  (16 s over 862k versions); hybrid FULLTEXT + vector RRF in SQL.
 - Costly to change later, so settle before embedding: the chunking rule and the exact text that
   is embedded (old versions must be split and embedded the same way). Start the full history
   load early; it takes all night. Everything else can be rebuilt from the Parquet files.
@@ -159,12 +173,16 @@ people split the work".
   (29,460 rows, 0.7 min; `load_s.py --verify` ok, search ~1 ms warm). **Passages and vectors
   loaded** (66,642 each, embedded on Modal in 6.4 min; recall@10 99.4%, ~11–17 ms).
 - **Shared server** (`root@135.181.8.213`, SSH alias `lakebandits` on A's PC) holds the same:
-  all of M, S vectors, 66,642 passages + vectors (recall 99.2%), all verified. `revert_event`
-  empty until 2.A1.
+  all of M, S vectors, 66,642 passages + vectors (recall 99.2%), all verified. Plus
+  `revert_event` (46,015 reverts, Talvisota 328), and A's time pages run there (`app/history.py`).
+  The server's repo copy is updated from a git bundle (the repo is private).
+- A's base is done (1.A6–1.A8, 2.A1–2.A3, on `a-data-time`, PR into `planning`). Phase 3 pilot
+  done on 3 hero articles; the full `passage_history` build over all 862k versions is running.
 - Loading bge-m3 needs ~5 GB free memory; short of it, it fails with misleading errors.
 - `.env.example` lists every setting; copy to `.env` (git-ignored) and fill in.
-- Next: A revert detection (2.A1) on `a-data-time`; B search + eval (2.B1) on `b-search-app`,
-  against the server.
+- Next: A: full history build → embed (~400k texts, Modal) → load `history_vector` → measure
+  speed at full size. B: search + eval (2.B1) on `b-search-app`, against the server. Then L at
+  scale (Markdown passages) for the scalability criterion.
 
 ## Coding style
 - Use the `ponytail` skill (level full) for every coding task: the smallest code that works,
