@@ -105,7 +105,7 @@ function render(res, q, animate) {
         (h.rewrites != null ? `<span class="pill num">${num(h.rewrites)} rewrite${h.rewrites === 1 ? "" : "s"}</span>` : "") +
         (h.contested ? `<span class="pill pill-warn" title="This passage is often reverted">contested</span>` : "")}</p>
       <div class="src-actions">
-        <a class="btn btn-quiet" href="${safeUrl(s.url)}" target="_blank" rel="noopener" title="The exact version this text came from">Open on Wikipedia ↗</a>
+        <a class="btn btn-quiet" href="${safeUrl(s.deep_url || s.url)}" target="_blank" rel="noopener" title="The exact version this text came from, scrolled to this passage">Open on Wikipedia ↗</a>
         <a class="btn btn-quiet" href="${history}" data-go="${key}">History</a>
         <a class="btn btn-quiet" href="${graphUrl(s.page_id, q)}" data-go="${key}">Graph</a>
       </div></article>`;
