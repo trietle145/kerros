@@ -168,3 +168,42 @@ with reverts marked; picking a month opens the article as of that month.
 **Verification:** manual check on the 3 hero articles (functionality confirmed by Triet);
 `python -m app.history` asserts the oldid changes with the date.
 **Dependencies:** 2.A2. **Files:** `app/templates/article.html`, `app/static/history.*`. **Scope:** M.
+
+---
+
+## Phase 3 pilot: time-aware retrieval (level B), 2026-11-14
+
+Question type from the brief: *"what did Wikipedia say about this in 2015, and what has changed
+since?"* Time is a **filter** (system-versioned lifetimes), not something mixed into the vectors:
+the date is stripped from the question before embedding.
+
+**Sizing pilot** (real chunking rule over every version, 3 hero + 200 random articles): 0
+mismatches between old-version splitting and today's hashes, so historical vectors line up with
+the current ones. Extrapolated to all 862,076 versions: ~350–450k distinct texts alive ≥ 1 day
+(5–7× today's 66,642), ~40 min on Modal with 4 GPUs (~15 with 12), ~2 GB of vectors, chunking
+~70 min on one core.
+
+**End-to-end pilot** (3 hero articles, `scripts/build_history.py 1256 1150 440`):
+- `passage_text` 6,238 texts, `passage_history` (system-versioned) 8,002 lifetimes, built in
+  4 min. `--verify`: for 15 versions 2003–2026, `FOR SYSTEM_TIME AS OF` returns exactly that
+  version's passages.
+- 3,459 texts embedded on Modal in 0.9 min, into a separate `history_vector` table (kept out of
+  B's `passage_vector` until B's search exists).
+- Query: vector search `LIMIT 200` in a subquery, then `JOIN passage_history FOR SYSTEM_TIME AS
+  OF`, then the article version live on that date for the citation: **2–8 ms** (3,622 vectors).
+- "What changed since": today's counterpart found **by meaning** (nearest current passage of the
+  same article, distance 0.00–0.16), not by heading; headings get renamed. Then a word diff.
+  Real finds: Red terror victims "noin 1 650" → "1 400–1 650"; prisoners "noin 80 000" →
+  "76 000" plus a new sentence on ~10,000 Reds fleeing; "Moskovan neuvottelut" (2008) is now
+  "Suomen ja Neuvostoliiton neuvottelut aluemuutoksista".
+
+**Still open before the full run:**
+- Speed and survivor count at ~400k vectors (LIMIT 200 then the time filter; raise the LIMIT if
+  too few candidates survive).
+- Rewritten paragraphs make a messy inline diff: show side by side when similarity is low.
+- Retrieval quality of the topic part is B's search (hybrid, eval); the pilot used plain vectors.
+- Citation-drop signal (for source-health badges) exists but needs filtering: refs moving
+  between reference sections, and blankings that were reverted.
+
+**Full run** = `scripts/build_history.py <all page ids>` (to parallelise first) →
+`modal run scripts/modal_embed.py --src data/history/passages.parquet` → load `history_vector`.
