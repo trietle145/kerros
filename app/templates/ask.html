@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Ask · Wikipedia trust tool{% endblock %}
+{# blocking="render": a cached answer is drawn before the first paint, so coming back from the
+   graph or history page shows the answer at once and the page transition has something to morph. #}
+{% block head %}<script type="module" src="{{ url_for('static', filename='ask.js') }}" blocking="render"></script>{% endblock %}
+{% block topbar %}{% endblock %}
+{% block content %}
+<div class="ask" id="ask" data-state="landing">
+  <section class="hero">
+    <p class="kicker">19,742 articles on Finnish history · every version since 2003</p>
+    <h1>Ask Wikipedia. See where every sentence <em>comes from</em>.</h1>
+    <p>Each sentence of the answer links to the paragraph behind it, and each paragraph opens its own history: what it said then, and what has changed since.</p>
+  </section>
+
+  <form class="ask-form" id="ask-form" action="{{ url_for('ask.index') }}" method="get" role="search" novalidate>
+    <div class="ask-box">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="q" name="q" type="text" lang="fi" aria-label="Your question" placeholder="Ask about Finnish history…"
+             autocomplete="off" autocapitalize="sentences" enterkeyhint="search" spellcheck="false">
+      <button class="btn btn-primary" type="submit">Ask <kbd aria-hidden="true">↵</kbd></button>
+    </div>
+    <div class="ask-opts">
+      <label for="as-of">Optional: as Wikipedia stood on</label>
+      <input id="as-of" name="as_of" type="date" min="2003-01-01" max="2026-10-01">
+      <button class="linkish" id="as-of-clear" type="button" hidden>back to today</button>
+    </div>
+    {% if request.args.get('mock') %}<input type="hidden" name="mock" value="{{ request.args.get('mock') }}">{% endif %}
+  </form>
+
+  <div id="ask-error" role="alert"></div>
+
+  <section class="examples" aria-labelledby="ex-head">
+    <h2 class="kicker" id="ex-head">Try one</h2>
+    <ul id="examples">
+      {# placeholders until A sends the demo questions #}
+      <li><button class="chip" type="button" lang="fi">Milloin talvisota alkoi?</button></li>
+      <li><button class="chip" type="button" lang="fi">Mitkä olivat Mainilan laukaukset?</button></li>
+      <li><button class="chip" type="button" lang="fi">Miksi Suomen sisällissota syttyi?</button></li>
+      <li><button class="chip" type="button" lang="fi" data-q="Mitä Wikipedia sanoi sisällissodan punavangeista vuonna 2007, ja mitä on muuttunut?"><span class="pill pill-accent" lang="en">then vs now</span>Mitä Wikipedia sanoi punavangeista vuonna 2007, ja mitä on muuttunut?</button></li>
+    </ul>
+  </section>
+
+  <section class="results" id="results" aria-label="Answer">
+    <div class="status" id="status" role="status"></div>
+    <div class="results-grid">
+      <div class="answer" id="answer"></div>
+      <aside class="sources" id="sources" aria-label="Sources"></aside>
+    </div>
+    <section class="diffs" id="diffs" hidden></section>
+    <section class="related" id="related" hidden></section>
+  </section>
+</div>
+{% endblock %}

@@ -1,13 +1,35 @@
 <!doctype html>
-<html lang="fi">
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#111115">
   <title>{% block title %}Wikipedia trust tool{% endblock %}</title>
+  <style>@view-transition { navigation: auto; }</style>  {# inline: must be known when <body> starts, before app.css may have loaded #}
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
   {% block head %}{% endblock %}
 </head>
-<body>
-  <main>{% block content %}<p>Ask page comes in 2.B3.</p>{% endblock %}</main>
+<body class="{% block body_class %}{% endblock %}"{% block body_attrs %}{% endblock %}>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('ask.index', mock=request.args.get('mock')) }}">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M6 7l6 10M12 17l7-9M6 7l13 1"/><circle cx="6" cy="7" r="2.6" fill="currentColor"/><circle cx="19" cy="8" r="2" fill="currentColor"/><circle cx="12" cy="17" r="2.3" fill="currentColor"/>
+      </svg>
+      Wikipedia trust tool <small>Finnish history, through time</small>
+    </a>
+    {% block topbar %}
+    <a class="back" id="back-q" href="/" hidden><b aria-hidden="true">←</b><span></span></a>
+    <script>  // back to the last question asked in this tab (the Ask page restores it without refetching)
+      try {
+        var s = JSON.parse(sessionStorage.getItem("lastAsk")), a = document.getElementById("back-q");
+        if (s && s.q) { a.href = "/?q=" + encodeURIComponent(s.q); a.lastChild.textContent = s.q; a.hidden = false; }
+      } catch (e) {}
+    </script>
+    {% endblock %}
+  </header>
+  <main id="main">{% block content %}{% endblock %}</main>
   <footer>
     Text from <a href="https://fi.wikipedia.org/">Wikipedia</a>,
     <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.
