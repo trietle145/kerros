@@ -1,6 +1,6 @@
 """Does search find the right article, and how fast? (2.B1, now A's)
 
-    python eval/evaluate.py              # passage search + whole-article vectors, 37 questions
+    python eval/evaluate.py              # each list alone and fused (= our search), 37 questions
     python eval/evaluate.py --misses     # also list questions whose article wasn't in the top 5
 
 Questions: eval/test-questions.tsv, from the RAG starter (a question in fi, sv or en and the Finnish
@@ -24,11 +24,11 @@ ARTICLE_SQL = """SELECT v.page_id FROM (SELECT page_id, VEC_DISTANCE_COSINE(embe
                  FROM article_vector WHERE lang = 'fi' ORDER BY d LIMIT 30) v ORDER BY v.d LIMIT 10"""
 
 
-def passage_articles(vector):
-    return [r["page_id"] for r in rank(vector, k=10, per_article=1)]
+def passages(lists):
+    return lambda vector, question: [r["page_id"] for r in rank(vector, question, 10, 1, lists)]
 
 
-def whole_articles(vector):
+def whole_articles(vector, question):
     with closing(connect()) as con:
         cur = con.cursor()
         cur.execute(ARTICLE_SQL, (vector,))
@@ -60,11 +60,14 @@ def main():
     vectors = embed([q["question"] for q in questions])
     print(f"{len(questions)} questions ({len(missing)} expected articles not in M: {missing}); "
           f"embedding {(time.perf_counter() - t) * 1000 / len(questions):.0f} ms per question")
-    for name, fn in (("passages (ours)", passage_articles), ("whole articles (S vectors)", whole_articles)):
+    modes = (("whole articles (S vectors)", whole_articles),
+             ("vec", passages(("vec",))), ("vec + ft", passages(("vec", "ft"))),
+             ("vec + art", passages(("vec", "art"))), ("passages (ours)", passages(("vec", "ft", "art"))))
+    for name, fn in modes:
         ranks, ms = [], []
         for q, v in zip(questions, vectors):
             t = time.perf_counter()
-            found = fn(v)
+            found = fn(v, q["question"])
             ms.append((time.perf_counter() - t) * 1000)
             q[name] = found.index(q["page_id"]) + 1 if q["page_id"] in found else None
             ranks.append(q[name])
