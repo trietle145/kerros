@@ -28,14 +28,16 @@ where editors reverted each other.
 | Base | Cited Q&A over today's paragraphs (RAG) + article as of a date and edit timeline with reverts (SVT). |
 | Highlight | One feature **through time**, added on top of the base. Which one is open (Phase 3). |
 | History data | All of dataset M in one system-versioned `article` table with real timestamps. |
-| Search data | Paragraphs from M's newest version of each article, cleaned to plain text, one bge-m3 vector each. |
-| Paragraph unit | One paragraph; short ones merged up to ~300 words. Title + section heading prepended only when embedding. |
-| Retrieval | Hybrid (vectors + `FULLTEXT`, fused by rank). Built vector-only first. |
+| Search data | Passages from M's newest version of each article, cleaned to plain text, one bge-m3 vector each (~67k). |
+| Passage unit | One section (lead included); sections over ~300 words split at paragraphs; no merging across sections, no overlap; reference/link sections skipped. Embedding input `title 
+ heading 
+ text`. Details: `docs/architecture.md`, "Chunking, embedding and keyword search". |
+| Retrieval | Hybrid: vectors + `FULLTEXT` in boolean mode with Finnish prefix terms (`Kekko*`), fused by RRF (k = 60, top 50 per side). Built vector-only first. |
 | Vector index | Fixed, recommended by MariaDB: `M=16 DISTANCE=cosine` on every vector index, `SET mhnsw_ef_search = 80` on every search connection. Defaults found only 79% of the true top 10. |
 | Answer model | Claude API ($20 per person) or Gemini, read from `.env`. |
 | S vectors | Loaded as shipped, for whole-article search and the sv/en articles. |
 | Hosting (**open**) | **Now:** MariaDB in Docker on A's PC (M loaded); local copies per person are cheap since M loads in ~12 min. **Leading option:** one always-on rented CPU server (4 vCPU, 16 GB RAM, 60 GB disk; Verda if CPU-only machines exist, else Hetzner/DigitalOcean, or MariaDB's own cloud if the mentors offer it) running `docker-compose.yml`: MariaDB now, plus the Flask app and Caddy (public HTTPS) once the app exists. MariaDB is never public: the app reaches it inside Docker, the team over Tailscale with their own logins. Deploy = `git pull && docker compose up -d --build`. |
-| GPU | Embedding runs on a GPU for about an hour: Modal ($100 per person) or a Verda GPU machine, then the vectors are loaded into the shared database. |
+| GPU | Embedding runs on a GPU for a few minutes (~67k passages): Modal ($100 per person) or a Verda GPU machine, then the vectors are loaded into the shared database. |
 
 **Fixed before embedding** (changing them later means embedding again): the chunking rule and the
 exact text that is embedded. Everything else can be rebuilt from the Parquet files.
@@ -95,7 +97,9 @@ halves can be built in parallel.
 
 **Acceptance criteria:**
 - [ ] `data/passages.parquet` columns: `page_id, rev_id, title, position, heading, text, text_hash`
-      (`text_hash` = SHA-256 of `text`, 32 bytes).
+      (`text_hash` = SHA-256 of the embedding input `title 
+ heading 
+ text`, 32 bytes).
 - [ ] `data/passage_vectors.parquet` columns: `text_hash, model, embedding` (1024 float32, normalised).
 - [ ] `.env.example` (already committed) has every key both people need.
 
@@ -175,28 +179,31 @@ second logged, so the full-load time can be estimated.
 **Verification:** both counts; an AS OF query on *Talvisota* takes well under a second.
 **Dependencies:** 1.A4. **Files:** none. **Scope:** XS (runs all night).
 
-### Task 1.B1: paragraphs from the Parquet files
+### Task 1.B1: passages from the Parquet files
 
 **Description:** `scripts/build_passages.py` reads `data/m/*.parquet` directly (no database), takes
 the newest version of each article, cleans the wikitext to plain text (reuse the starter's cleaner),
-splits it into paragraphs (short ones merged up to ~300 words) and writes `data/passages.parquet`
+cuts it into one passage per section (lead included; sections over ~300 words split at
+paragraphs; reference and link sections skipped) and writes `data/passages.parquet`
 in the 1.0 format. Takes `--limit N` and `--titles`. Run it wherever a copy of M is: A's PC
 already has one on D:, the database machine has another.
 
 **Acceptance criteria:**
-- [ ] On 3 hero articles (*Talvisota*, *Suomen sisällissota*, one more) the paragraphs read cleanly:
+- [ ] On 3 hero articles (*Talvisota*, *Suomen sisällissota*, one more) the passages read cleanly:
       no template, table or reference markup left.
-- [ ] Every row has `rev_id` and `heading`; no empty texts.
-- [ ] Full run finishes; total paragraph count and distinct `text_hash` count noted.
+- [ ] Every row has `rev_id` and `title` (`heading` NULL only for the lead); no empty texts.
+- [ ] Full run finishes; passage count (~67k expected) and distinct `text_hash` count noted.
 
-**Verification:** print 10 random paragraphs and read them; counts in the PR.
+**Verification:** print 10 random passages and read them; counts in the PR.
 **Dependencies:** 1.0. **Files:** `scripts/build_passages.py`, `scripts/wikitext.py`. **Scope:** M.
 
-### Task 1.B2: embed the paragraphs
+### Task 1.B2: embed the passages
 
-**Description:** `scripts/embed_passages.py` embeds each distinct paragraph text with bge-m3 (input
-= title + heading + text, normalised) and writes `data/passage_vectors.parquet`. Runs on a GPU
-for about an hour: Modal (per-second billing, $100 per person) or a Verda GPU machine; Colab or
+**Description:** `scripts/embed_passages.py` embeds each distinct passage with bge-m3 (input
+= title 
+ heading 
+ text, max 1,024 tokens, normalised) and writes `data/passage_vectors.parquet`. Runs on a GPU
+for a few minutes (~67k passages; 1–3 hours on a CPU also works): Modal (per-second billing, $100 per person) or a Verda GPU machine; Colab or
 Kaggle as a free fallback. Time it on 20 articles first.
 
 **Acceptance criteria:**
@@ -300,8 +307,9 @@ ignores it for now.
 
 ### Task 2.B4: hybrid search
 
-**Description:** Add the `FULLTEXT` half and fuse both rankings by reciprocal rank fusion in one SQL
-statement (MariaDB's documented RRF pattern; see `docs/architecture.md`).
+**Description:** Add the `FULLTEXT` half (boolean mode, prefix terms built from the question in
+Python: Kekkonen → `Kekko*`) and fuse both rankings by RRF (k = 60, top 50 per side) in one SQL
+statement with `UNION ALL` + `GROUP BY` (no FULL OUTER JOIN in MariaDB). See `docs/architecture.md`.
 
 **Acceptance criteria:**
 - [ ] Evaluation score is not lower than vector-only; both numbers recorded.
@@ -411,7 +419,7 @@ lifetimes for all articles if the highlight needs them, tidy the page, rehearse 
 | Embedding without a GPU takes many hours | High | Modal or Verda GPU; time a 20-article pilot first (1.B2) |
 | Wikitext cleaning leaves junk in paragraphs | Medium | Read the 3 hero articles early (1.B1) |
 | Paragraph and question vectors made differently | High | Five-question check, cosine > 0.99 (1.B2) |
-| Finnish word endings weaken `FULLTEXT` | Low | Vector half carries meaning; keyword half for exact names and years (1.A3) |
+| Finnish word endings weaken `FULLTEXT` | Low | Tested: prefix terms in boolean mode match other word forms; vector half outvotes over-matches |
 | Overnight load fails midway | Medium | Loader is resumable (1.A4) |
 | Size: history 7–10 GB, vectors ~4 KB each | Low | D: has 89 GB |
 | Naming editors | Medium | Show patterns and diff links, never "vandal" |
