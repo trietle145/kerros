@@ -452,6 +452,7 @@ def ask_l():
     from app.llm import RefusedError, complete
     from app.search import rank
     from app.answer import DAILY_LIMIT, take_answer
+    from app.translate import guess_lang
     question = (request.values.get("q") or "").strip()
     if not question:
         return {"error": "q is required"}, 400
@@ -465,10 +466,13 @@ def ask_l():
         numbered = "\n\n".join(f"[{n}] {s['title']}" + (f" / {s['heading']}" if s["heading"] else "") +
                                f"\n{s['text']}" for n, s in enumerate(sources, 1))
         lines = parse(complete(SYSTEM, f"Passages:\n\n{numbered}\n\nQuestion: {question}"), len(sources))
-        sources = [{"n": n, **s, "url": f"https://fi.wikipedia.org/?oldid={s['rev_id']}",
+        # passage_id None: l_passage ids are not passage ids, and /api/health and /api/rewind read
+        # passage (M, with history); without an id the page skips both for L answers
+        sources = [{"n": n, **s, "passage_id": None, "url": f"https://fi.wikipedia.org/?oldid={s['rev_id']}",
                     "deep_url": deep_url(s["rev_id"], s["heading"], s["text"])} for n, s in enumerate(sources, 1)]
         renumber(lines, sources)
-        return {"question": question, "kind": "plain", "scope": "l", "answer": lines, "sources": sources}
+        return {"question": question, "kind": "plain", "scope": "l", "answer": lines, "sources": sources,
+                "lang": guess_lang(" ".join(a["text"] for a in lines))}
     except RefusedError as e:
         return {"error": str(e)}, 422
     except Exception as e:
