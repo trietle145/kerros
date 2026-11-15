@@ -21,7 +21,7 @@ from app.translate import guess_lang
 from scripts.common import env
 
 bp = Blueprint("answer", __name__)
-DAILY_LIMIT = int(env().get("ASK_DAILY_LIMIT") or 300)   # model answers per day (~$0.03 each)
+DAILY_LIMIT = int(env().get("ASK_DAILY_LIMIT") or 400)   # model answers per day (~$0.03 each)
 HOURLY_PER_VISITOR = int(env().get("ASK_HOURLY_PER_VISITOR") or 20)   # so one visitor can't use up the day
 _used, _recent, _lock = {"day": None, "n": 0}, {}, threading.Lock()
 

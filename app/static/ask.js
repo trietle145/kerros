@@ -488,8 +488,9 @@ async function submit() {
     stepTimers.forEach(clearTimeout);
     if (e.name === "AbortError") { setState(current ? "answer" : "landing"); if (current) render(current.res, current.q, false); return; }
     if (q) setState("error"); else input.focus();
-    errorBox.innerHTML = `<p class="alert"><span><b>${q ? "That did not work." : "Type a question first."}</b> ${esc(e.message)}</span>
-      ${q ? `<button class="btn" type="button">Try again</button>` : ""}</p>`;
+    const limited = e.status === 429;                  // a cap on model calls, not a failure: no retry button
+    errorBox.innerHTML = `<p class="alert"><span><b>${!q ? "Type a question first." : limited ? "Limit reached." : "That did not work."}</b> ${esc(e.message)}</span>
+      ${q && !limited ? `<button class="btn" type="button">Try again</button>` : ""}</p>`;
   }
 }
 

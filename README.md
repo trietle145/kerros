@@ -138,7 +138,7 @@ gunicorn -c gunicorn.conf.py app.main:app   # production; bash scripts/setup_pub
 ```
 
 Settings live in `.env` (see `.env.example`): database login, `LLM_API_KEY`, and the caps on model
-calls (`ASK_HOURLY_PER_VISITOR`, default 20; `ASK_DAILY_LIMIT`, default 300).
+calls (`ASK_HOURLY_PER_VISITOR`, default 20; `ASK_DAILY_LIMIT`, default 400).
 
 ## Repository layout
 

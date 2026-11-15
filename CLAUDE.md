@@ -208,7 +208,7 @@ demo polish). The JSON API is the contract between them: `docs/frontend.md`.
 - `.env.example` lists every setting; copy to `.env` (git-ignored) and fill in.
 - **Public site (live since 2026-11-14):** https://135.181.8.213.compute.verda.run (Caddy, open, no
   password; `scripts/setup_public.sh`). Model calls capped at `ASK_HOURLY_PER_VISITOR` (20) per IP
-  and `ASK_DAILY_LIMIT` (300) a day. The server runs `main`. The app doesn't restart after a reboot.
+  and `ASK_DAILY_LIMIT` (400) a day. The server runs `main`. The app doesn't restart after a reboot.
 - Next (A): translate-before-search for the 2 remaining search misses if needed; a small model as judge for
   the cross-language "partly" label if it goes into the demo.
 

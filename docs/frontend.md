@@ -29,7 +29,7 @@ else calls `fetch`, and the frontend never touches the database.
 ## API
 
 All routes are same-origin JSON. Errors are `{"error": "..."}` with 400 (bad input), 404 (unknown
-article), 422 (the model declined), 429 (daily answer cap, `ASK_DAILY_LIMIT`), 500 (model or
+article), 422 (the model declined), 429 (answer caps: `ASK_HOURLY_PER_VISITOR` per IP, `ASK_DAILY_LIMIT` a day), 500 (model or
 database down).
 
 | Route | Returns |

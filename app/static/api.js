@@ -32,7 +32,7 @@ async function get(url, fixtures, ms = 15000, fallback = true, signal) {
   }
   if (r.ok && data) return { ...data, _source: "live" };
   const message = data?.error || `HTTP ${r.status}`;
-  if (!fallback || !fixtures.length || (r.status >= 400 && r.status < 500 && r.status !== 404 && r.status !== 405)) throw new Error(message);
+  if (!fallback || !fixtures.length || (r.status >= 400 && r.status < 500 && r.status !== 404 && r.status !== 405)) throw Object.assign(new Error(message), { status: r.status });
   return fixture(fixtures, message);
 }
 
