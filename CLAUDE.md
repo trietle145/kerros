@@ -103,7 +103,7 @@ demo polish). The JSON API is the contract between them: `docs/frontend.md`.
    with reverts), History button joining them.
 3. The highlight (built): then-vs-now answers; cross-language gaps (`/compare/<page_id>`, "Other
    Wikipedias add" on answers); graph through time (B's page on `/api/graph`).
-4. Scale numbers on L (measured at ~700k vectors), evals (`eval/README.md`), public hosting,
+4. Scale numbers on L (measured at 981,639 vectors), evals (`eval/README.md`), public hosting,
    polish, demo rehearsal (**OPEN**).
 
 ## Architecture (docs/architecture.md)
@@ -198,15 +198,17 @@ demo polish). The JSON API is the contract between them: `docs/frontend.md`.
   server in tmux `web` via gunicorn: start/restart `bash scripts/restart_app.sh`, view through
   `ssh -N -L 5000:127.0.0.1:5000 lakebandits` → http://127.0.0.1:5000. The server's repo copy is
   updated from a git bundle (`git bundle create … --all`, scp, `git fetch` there; repo private).
-- **L load (stopped 2026-11-14 at ~700k of 1.55M vectors, for measuring):** rerun
+- **L load (stopped 2026-11-14 at 981,639 of 1,545,854 vectors, for measuring):** rerun
   `bash /root/l_pipeline.sh` on the server to resume (skips loaded rows; one loader, memory guard;
   ~50 inserts/s at this size, so hours). Keep the app off the server while it loads. Numbers:
   `eval/README.md` and docs/architecture.md, "Scale: S → M → L".
 - Loading bge-m3 needs ~5 GB free memory; short of it, it fails with misleading errors. The first
   question after an app restart takes ~13 s (model load); gunicorn warms it at start.
 - `.env.example` lists every setting; copy to `.env` (git-ignored) and fill in.
-- Next (A): public hosting (Caddy; per-visitor limit on model calls on top of the daily cap);
-  translate-before-search for the 2 remaining search misses if needed; a small model as judge for
+- **Public site (live since 2026-11-14):** https://135.181.8.213.compute.verda.run (Caddy, open, no
+  password; `scripts/setup_public.sh`). Model calls capped at `ASK_HOURLY_PER_VISITOR` (20) per IP
+  and `ASK_DAILY_LIMIT` (300) a day. The server runs `main`. The app doesn't restart after a reboot.
+- Next (A): translate-before-search for the 2 remaining search misses if needed; a small model as judge for
   the cross-language "partly" label if it goes into the demo.
 
 ## Coding style

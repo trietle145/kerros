@@ -559,15 +559,15 @@ untouched and every query runs on L by swapping two table names (`rank(..., tabl
 | Loading into the vector index | ~50–740 inserts/s, one writer: hours | minutes |
 
 **Search, measured with the 37 eval questions** (`eval/scale.py`, `eval/evaluate.py --l`; load
-stopped at ~700k of L's 1.55M vectors for the measurement; details in
+stopped at 981,639 of L's 1,545,854 vectors (64%) for the measurement; details in
 [`eval/README.md`](../eval/README.md)):
 
 | Table | Vectors | recall@10 | index search (median / p95) | exact scan | hit@5 / hit@10 |
 | --- | --- | --- | --- | --- | --- |
 | S whole articles | 29,460 | 99.2% | 17 / 127 ms | 55 ms | 63% / 77% (alone) |
 | M passages | 66,543 | 98.6% | 4.1 / 7.0 ms | 127 ms | 92% / 95% (five lists) |
-| M every version | 353,166 | *running* | | | — |
-| L passages | ~700,000 | *running* | | | 91% / 94% (five lists) |
+| M every version | 353,067 | 88.4% | 447 / 861 ms (rough) | 71 s | — |
+| L passages | 981,639 | 95.4% | 10 / 1,036 ms | 285 s | 91% / 94% (five lists) |
 
 The fused search holds its hit rate from M to L; plain passage-vector search drops to 49% hit@5
 on L, because near-duplicate paragraphs from other articles crowd out the right one.
@@ -601,5 +601,8 @@ What we had to learn to make MariaDB do this; each one is a sentence in the pitc
   prison-camp deaths). Levers: a reranker over the top 50, or more passages per article.
 - **Cross-language labels** use fixed distance cut-offs: *covered* and *missing* are reliable,
   *partly* is the grey zone. A small model could judge only the 8,779 *partly* pairs (~$3–5 once).
-- **Dataset L** is loaded to ~700k of 1.55M vectors; the rest loads at ~50 inserts/s (hours).
+- **Dataset L** is loaded to 981,639 of 1,545,854 vectors (64%); the rest loads at ~50 inserts/s
+  (hours, with the app off). The all-articles toggle on the Ask page is hidden until then.
+- **History-vector recall** is 88% (near-identical old versions); the then-vs-now search fetches
+  500 candidates before its time filter, so it doesn't depend on the top 10.
 - **Reverts** are exact-text matches (sha1): partial reverts and rewordings are missed.

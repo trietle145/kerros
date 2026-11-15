@@ -25,17 +25,17 @@ distinct articles; each article appears once in the list (at most one passage pe
 | + FULLTEXT on names and years only | 38% | 76% | 84% | 15 ms |
 | **+ en/sv article vectors + title mentions (ours, five lists)** | **51%** | **92%** | **95%** | 18–25 ms |
 
-**Dataset L (all 568k Finnish articles), loaded to ~700k of 1.55M passage vectors**
+**Dataset L (all 568k Finnish articles), loaded to 981,639 of 1,545,854 passage vectors (64%)**
 
 35 questions: two whose article had no L vectors yet are left out (*Mannerheimin murhayritys
 1920*, *Kuorsumaan torpparikapina*).
 
 | Search | hit@1 | hit@5 | hit@10 | MRR | SQL median |
 | --- | --- | --- | --- | --- | --- |
-| Whole-article vectors (S) | 17% | 63% | 77% | 0.36 | 19 ms |
-| Passage vectors only | 14% | 49% | 63% | 0.31 | 727 ms |
-| Passage vectors + names FULLTEXT | 14% | 40% | 54% | 0.24 | 727 ms |
-| **Ours, five lists** | **49%** | **91%** | **94%** | **0.64** | 212 ms |
+| Whole-article vectors (S) | 17% | 63% | 77% | 0.36 | 4 ms |
+| Passage vectors only | 14% | 49% | 63% | 0.31 | 31 ms |
+| Passage vectors + names FULLTEXT | 9% | 40% | 54% | 0.21 | 255 ms |
+| **Ours, five lists** | **51%** | **91%** | **94%** | **0.66** | 117 ms |
 
 Plain vector search falls apart at L's size (near-duplicate paragraphs from other articles crowd
 out the right one); the fused lists hold it at the same level as on M. Remaining misses: English
@@ -75,9 +75,19 @@ time with and without the index. Index settings everywhere: `M=16`, cosine, `mhn
 | --- | --- | --- | --- | --- | --- |
 | S whole articles (fi, sv, en) | 29,460 | 99.2% | 17.3 / 127.3 | 55 | 3× |
 | M passages, today | 66,543 | 98.6% | 4.1 / 7.0 | 127 | 31× |
-| M passages, every version | 353,166 | *running* | | | |
-| L passages, all fi articles | ~700,000 | *running* | | | |
+| M passages, every version | 353,067 | 88.4% | 447 / 861 * | 70,625 | 158× |
+| L passages, all fi articles | 981,639 | 95.4% | 10.0 / 1,036 | 285,284 | ~28,500× |
+
+\* measured while the answer eval ran on the same machine; read as rough.
+
+- **The index keeps search in milliseconds as the table grows 33×** (S → L): the exact scan goes
+  from 55 ms to almost 5 minutes per question at L's size; the index stays at a 10 ms median.
+  The p95 on L (~1 s) is the first queries reading a cold index from disk.
+- **The history table has lower recall (88%).** It holds many near-identical vectors (old
+  versions of the same paragraph), so the true top 10 are separated by tiny distances and the
+  graph search swaps some of them for equally close neighbours. The then-vs-now search fetches
+  500 candidates before its time filter, so it is not limited by the top 10.
 
 Loading L: 1,545,854 passages built in 63 s, embedded on Modal GPUs in ~1 h, then inserted into
 the vector index by one writer: ~2,000/s at first, ~50/s past 600k vectors (each insert walks a
-bigger graph). Load stopped at ~700k for these measurements.
+bigger graph). Load stopped at 981,639 vectors for these measurements.
