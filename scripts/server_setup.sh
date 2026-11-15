@@ -2,20 +2,20 @@
 # One-time setup of the shared server (fresh Ubuntu, Verda CPU instance). Idempotent: safe to rerun.
 # Run inside tmux so a dropped SSH session doesn't stop the ~15 min load:
 #   tmux new -s setup
-#   curl -fsSL https://raw.githubusercontent.com/trietle145/LakeBandits_junction/a-data-time/scripts/server_setup.sh | bash
-# Afterwards: copy passages.parquet + passage_vectors.parquet into ~/LakeBandits_junction/data/ and run
+#   curl -fsSL https://raw.githubusercontent.com/trietle145/kerros/main/scripts/server_setup.sh | bash
+# Afterwards: copy passages.parquet + passage_vectors.parquet into ~/kerros/data/ and run
 #   .venv/bin/python scripts/load_vectors.py
 # MariaDB listens on 127.0.0.1 only; reach it with:  ssh -N -L 3307:127.0.0.1:3306 <user>@<server-ip>
 set -euo pipefail
-BRANCH=${BRANCH:-a-data-time}
+BRANCH=${BRANCH:-main}
 SUDO=$([ "$(id -u)" = 0 ] || echo sudo)
 
 command -v docker >/dev/null || curl -fsSL https://get.docker.com | $SUDO sh
 $SUDO apt-get update -qq && $SUDO apt-get install -y -qq git python3-venv python3-dev gcc libmariadb-dev tmux >/dev/null
 
 cd ~
-[ -d LakeBandits_junction ] || git clone -q -b "$BRANCH" https://github.com/trietle145/LakeBandits_junction
-cd LakeBandits_junction && git pull -q
+[ -d kerros ] || git clone -q -b "$BRANCH" https://github.com/trietle145/kerros   # private repo: needs access
+cd kerros && git pull -q
 
 if [ ! -f .env ]; then                      # random passwords, written once, never committed
   ROOTPW=$(openssl rand -hex 16); PW=$(openssl rand -hex 16)

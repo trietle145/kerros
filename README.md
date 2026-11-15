@@ -105,7 +105,7 @@ CC BY-SA 4.0; every passage shown links to its exact version.
 Needs Docker, Python 3.11+, ~16 GB RAM (bge-m3 needs ~5 GB free) and an Anthropic API key.
 
 ```bash
-git clone https://github.com/trietle145/LakeBandits_junction && cd LakeBandits_junction
+git clone https://github.com/trietle145/kerros && cd kerros
 cp .env.example .env              # passwords, LLM_API_KEY; DB_PORT=3307 if 3306 is taken
 docker compose up -d              # MariaDB 12, schema.sql applied on first start
 python -m venv .venv && . .venv/bin/activate      # Windows: .venv\Scripts\activate

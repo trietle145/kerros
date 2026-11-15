@@ -14,7 +14,8 @@ changed since?"* A plain cited-Q&A chatbot is the most common hackathon idea; or
 come from the time side.
 
 ## Resources (from the challenge page)
-- Team repo: https://github.com/trietle145/LakeBandits_junction. Planning docs are on the
+- Team repo: https://github.com/trietle145/kerros (renamed from LakeBandits_junction on 2026-11-15;
+  the server's checkout is still `/root/LakeBandits_junction`). Planning docs are on the
   `planning` branch.
 - Datasets (S, M, L): https://github.com/MariaDB/mariadb-wikipedia-datasets
 - RAG starter: https://github.com/MariaDB/mariadb-vector-wikipedia-rag
